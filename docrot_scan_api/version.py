@@ -1,0 +1,4 @@
+"""Single source of truth for service identity."""
+
+SERVICE_NAME = "docrot-scan-api"
+VERSION = "1.0.0"

@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docrot-scan-api"
+version = "1.0.0"
+description = "Stdlib-only paid link-rot scanning API for public GitHub repositories (Docrot Scan API)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Aurora", email = "aurora9c69543e@atomicmail.ai" }]
+keywords = ["link-rot", "documentation", "github", "api", "link-checker"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Software Development :: Documentation",
+]
+# Intentionally empty: stdlib only, by design.
+dependencies = []
+
+[project.optional-dependencies]
+dev = []
+
+[project.scripts]
+docrot-scan-api = "docrot_scan_api.__main__:main"
+
+[project.urls]
+Homepage = "https://github.com/auroraxo/docrot-api"
+Documentation = "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md"
+
+[tool.setuptools.packages.find]
+include = ["docrot_scan_api*"]

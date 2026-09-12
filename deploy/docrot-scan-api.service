@@ -1,0 +1,61 @@
+[Unit]
+Description=Docrot Scan API - link-rot scanning service for public GitHub repos
+Documentation=https://github.com/auroraxo/docrot-api/blob/main/docs/API.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Dedicated unprivileged user; create with:
+#   useradd --system --home /opt/docrot-scan-api --shell /usr/sbin/nologin docrot
+User=docrot
+Group=docrot
+WorkingDirectory=/opt/docrot-scan-api
+# stdlib-only: run straight from the source tree or after `pip install .`
+ExecStart=/usr/bin/python3 -m docrot_scan_api
+Restart=on-failure
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6
+# outbound network is required (GitHub fetches + URL checks)
+IPAddressAllow=any
+CapabilityBoundingSet=
+
+# Environment / limits (see docs/API.md for the full table)
+Environment=DOCROT_HOST=127.0.0.1
+Environment=DOCROT_PORT=8087
+Environment=DOCROT_MAX_REQUEST_BYTES=65536
+Environment=DOCROT_MAX_JOB_SECONDS=240
+Environment=DOCROT_MAX_ARCHIVE_BYTES=52428800
+Environment=DOCROT_MAX_URLS=1500
+Environment=DOCROT_CHECK_CONCURRENCY=8
+Environment=DOCROT_ACCESS_LOG=/var/lib/docrot/access.jsonl
+Environment=DOCROT_JOB_LOG=/var/lib/docrot/job.jsonl
+
+# Writable state directory for the JSONL logs above. StateDirectory is
+# created chowned to User=Group= before the hardening sandbox applies, so
+# the service can write /var/lib/docrot/*.jsonl despite ProtectSystem=strict.
+StateDirectory=docrot
+StateDirectoryMode=0750
+
+# Logs also go to stderr -> journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=docrot-scan-api
+
+[Install]
+WantedBy=multi-user.target
