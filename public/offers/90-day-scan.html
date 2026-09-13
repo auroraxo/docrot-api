@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="Fixed-price 90-day Docrot link-rot monitoring: four scans on days 1, 30, 60, and 90, with each machine-readable report delivered to the relevant GitHub tracking issue within 24 hours of its scheduled scan. USD 5, paid as approximately 0.0495 SOL.">
+  <title>Docrot — 90-Day Link-Rot Monitoring · USD 5</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f7f7f8;
+      --surface: #ffffff;
+      --text: #1c1e21;
+      --muted: #5b616b;
+      --border: #dcdfe4;
+      --accent: #4f3df5;
+      --accent-contrast: #ffffff;
+      --accent-soft: #edeafd;
+      --ok: #0b7a3b;
+      --shadow: 0 1px 2px rgba(20, 22, 26, 0.06), 0 8px 24px rgba(20, 22, 26, 0.06);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #121317;
+        --surface: #1a1c22;
+        --text: #e8eaed;
+        --muted: #a2a8b3;
+        --border: #2c2f38;
+        --accent: #8f83ff;
+        --accent-contrast: #101118;
+        --accent-soft: #262441;
+        --ok: #4cc98a;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.35);
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      line-height: 1.6;
+      background: var(--bg);
+      color: var(--text);
+    }
+    .container {
+      max-width: 46rem;
+      margin-inline: auto;
+      padding-inline: 1.25rem;
+    }
+    a { color: var(--accent); }
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+    .site-header {
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .site-header .container {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      padding-block: 1rem;
+    }
+    .brand { font-weight: 700; letter-spacing: 0.01em; margin: 0; font-size: 1.05rem; }
+    .brand span { color: var(--accent); }
+    .site-header a { color: var(--muted); text-decoration: none; font-size: 0.9rem; }
+    .site-header a:hover { color: var(--accent); }
+    .hero { padding-block: 3rem 2rem; text-align: center; }
+    .hero h1 {
+      font-size: clamp(1.9rem, 5vw, 2.75rem);
+      line-height: 1.15;
+      margin: 0 0 0.75rem;
+      letter-spacing: -0.02em;
+    }
+    .hero .lede { color: var(--muted); font-size: 1.1rem; max-width: 38rem; margin: 0 auto 1.5rem; }
+    .price-pill {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 0.5rem;
+      background: var(--accent-soft);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0.45rem 1.1rem;
+      font-weight: 600;
+      margin-bottom: 1.75rem;
+    }
+    .price-pill .approx { color: var(--muted); font-weight: 400; font-size: 0.95rem; }
+    .btn {
+      display: inline-block;
+      background: var(--accent);
+      color: var(--accent-contrast);
+      text-decoration: none;
+      font-weight: 600;
+      border: 1px solid transparent;
+      border-radius: 10px;
+      padding: 0.8rem 1.6rem;
+      font-size: 1rem;
+      box-shadow: var(--shadow);
+    }
+    .btn:hover { filter: brightness(1.08); }
+    .btn-ghost {
+      background: transparent;
+      color: var(--accent);
+      border: 1px solid var(--border);
+      box-shadow: none;
+    }
+    .cta-row { display: flex; gap: 0.75rem; justify-content: center; flex-wrap: wrap; }
+    main { padding-bottom: 3rem; }
+    section { margin-top: 2.25rem; }
+    h2 { font-size: 1.35rem; margin: 0 0 1rem; letter-spacing: -0.01em; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 1.5rem;
+      box-shadow: var(--shadow);
+    }
+    .scan-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0.75rem;
+    }
+    .scan-list li {
+      display: flex;
+      gap: 0.9rem;
+      align-items: baseline;
+      padding: 0.75rem 1rem;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--bg);
+    }
+    .scan-day {
+      flex: 0 0 4.5rem;
+      font-weight: 700;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .scan-note {
+      margin-top: 1rem;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .target-list { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.4rem; }
+    .target-list code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9em;
+      background: var(--accent-soft);
+      border-radius: 5px;
+      padding: 0.1em 0.4em;
+    }
+    .steps { margin: 0; padding-left: 1.4rem; display: grid; gap: 0.9rem; }
+    .steps li::marker { color: var(--accent); font-weight: 700; }
+    .steps .detail { color: var(--muted); font-size: 0.95rem; }
+    .pay-grid { display: grid; gap: 1.25rem; }
+    @media (min-width: 640px) {
+      .pay-grid { grid-template-columns: 1.2fr 1fr; align-items: start; }
+    }
+    .field { margin: 0 0 1rem; }
+    .field dt {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      margin-bottom: 0.25rem;
+    }
+    .field dd { margin: 0; }
+    .recipient-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .recipient-row code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.6rem;
+    }
+    .copy-btn {
+      font: inherit;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: var(--accent);
+      background: var(--accent-soft);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0.45rem 0.85rem;
+      cursor: pointer;
+    }
+    .copy-btn:hover { filter: brightness(1.05); }
+    .limits { color: var(--muted); font-size: 0.95rem; }
+    .limits ul { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.4rem; }
+    .limits strong { color: var(--text); }
+    .site-footer {
+      border-top: 1px solid var(--border);
+      background: var(--surface);
+      padding-block: 1.5rem;
+    }
+    .site-footer .container {
+      display: flex;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    .site-footer nav { display: flex; gap: 1.25rem; flex-wrap: wrap; }
+    .site-footer a { color: var(--muted); }
+    .site-footer a:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <p class="brand">Docrot<span>.</span></p>
+      <a href="https://codebyaurora.com/docrot-api/">Docrot API</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero" aria-labelledby="offer-title">
+      <h1 id="offer-title">90-Day Link-Rot Monitoring</h1>
+      <p class="lede">
+        Four Docrot scans across a 90-day cycle. Each scan produces a machine-readable
+        report delivered to the relevant GitHub tracking issue within 24 hours of its
+        scheduled scan.
+      </p>
+      <p class="price-pill">
+        Fixed price: USD 5 <span class="approx">paid as approximately 0.0495 SOL</span>
+      </p>
+      <div class="cta-row">
+        <a class="btn" href="solana:CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn?amount=0.0495&amp;label=Docrot%2090-Day%20Monitoring&amp;message=Fixed-price%2090-day%20Docrot%20monitoring">Pay with Solana Pay</a>
+        <a class="btn btn-ghost" href="#how-to-activate">How to activate</a>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="whats-included">
+      <h2 id="whats-included">What is included</h2>
+      <ol class="scan-list">
+        <li><span class="scan-day">Day 1</span><span>First scan of the monitoring cycle</span></li>
+        <li><span class="scan-day">Day 30</span><span>Second scan of the monitoring cycle</span></li>
+        <li><span class="scan-day">Day 60</span><span>Third scan of the monitoring cycle</span></li>
+        <li><span class="scan-day">Day 90</span><span>Fourth and final scan of the monitoring cycle</span></li>
+      </ol>
+      <p class="scan-note">
+        Every scan yields a machine-readable report, delivered to the relevant GitHub
+        tracking issue within 24 hours of that scan's scheduled day.
+      </p>
+    </section>
+
+    <section class="card" aria-labelledby="piloted-targets">
+      <h2 id="piloted-targets">Targets already piloted</h2>
+      <p>Docrot has been piloted against these repositories:</p>
+      <ul class="target-list">
+        <li><a href="https://github.com/eclipse-birt/birt-website"><code>eclipse-birt/birt-website</code></a></li>
+        <li><a href="https://github.com/eclipse-edc/eclipse-edc.github.io"><code>eclipse-edc/eclipse-edc.github.io</code></a></li>
+        <li><a href="https://github.com/Chere3/hermes-automation-stack"><code>Chere3/hermes-automation-stack</code></a></li>
+      </ul>
+    </section>
+
+    <section class="card" aria-labelledby="how-to-activate">
+      <h2 id="how-to-activate">How to activate</h2>
+      <ol class="steps">
+        <li>
+          Send USD 5 as approximately 0.0495 SOL to the Solana recipient address
+          below, using the Solana Pay link or any Solana wallet.
+          <p class="detail">Payment is sent by you directly; Docrot does not bill you automatically.</p>
+        </li>
+        <li>
+          Reply in the relevant GitHub tracking issue with your transaction signature
+          and the target repo/ref to start your 90-day monitoring cycle.
+          <p class="detail">Activation is handled from your issue reply; there is no automated payment verification.</p>
+        </li>
+      </ol>
+    </section>
+
+    <section class="card" aria-labelledby="payment-details">
+      <h2 id="payment-details">Payment details</h2>
+      <div class="pay-grid">
+        <dl>
+          <div class="field">
+            <dt>Solana recipient</dt>
+            <dd class="recipient-row">
+              <code id="recipient">CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn</code>
+              <button class="copy-btn" id="copy-address" type="button">Copy</button>
+            </dd>
+          </div>
+          <div class="field">
+            <dt>Amount</dt>
+            <dd>0.0495 SOL (approximately; fixed price is USD 5)</dd>
+          </div>
+          <div class="field">
+            <dt>Label</dt>
+            <dd>Docrot 90-Day Monitoring</dd>
+          </div>
+          <div class="field">
+            <dt>Message</dt>
+            <dd>Fixed-price 90-day Docrot monitoring</dd>
+          </div>
+        </dl>
+        <p>
+          <a class="btn" href="solana:CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn?amount=0.0495&amp;label=Docrot%2090-Day%20Monitoring&amp;message=Fixed-price%2090-day%20Docrot%20monitoring">Open in Solana Pay wallet</a>
+        </p>
+      </div>
+    </section>
+
+    <section class="card limits" aria-labelledby="limits">
+      <h2 id="limits">Scope and limits</h2>
+      <ul>
+        <li><strong>No automatic billing.</strong> This is a one-time fixed-price offer; nothing renews or charges automatically.</li>
+        <li><strong>No automated payment verification.</strong> Your cycle starts from your reply in the relevant GitHub issue with the transaction signature and target repo/ref.</li>
+        <li><strong>Four scans per cycle</strong>, on days 1, 30, 60, and 90. No other scans are included.</li>
+        <li><strong>Delivery channel is the relevant GitHub tracking issue</strong>, within 24 hours of each scheduled scan.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p>© 2026 Docrot</p>
+      <nav aria-label="Related pages">
+        <a href="https://codebyaurora.com/docrot-api/">Docrot API</a>
+        <a href="https://codebyaurora.com/docrot/">Docrot product page</a>
+      </nav>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var btn = document.getElementById("copy-address");
+      var addr = document.getElementById("recipient");
+      if (!btn || !addr) return;
+      btn.addEventListener("click", function () {
+        var text = addr.textContent.trim();
+        function done() {
+          btn.textContent = "Copied";
+          setTimeout(function () { btn.textContent = "Copy"; }, 1500);
+        }
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(done, function () {});
+        } else {
+          var ta = document.createElement("textarea");
+          ta.value = text;
+          document.body.appendChild(ta);
+          ta.select();
+          try { document.execCommand("copy"); done(); } catch (e) {}
+          document.body.removeChild(ta);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
