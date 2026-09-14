@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light dark">
-  <meta name="description" content="Fixed-price 90-day Docrot link-rot monitoring: four scans on days 1, 30, 60, and 90, with each machine-readable report delivered to the relevant GitHub tracking issue within 24 hours of its scheduled scan. USD 5, paid as approximately 0.0495 SOL.">
+  <meta name="description" content="Fixed-price 90-day Docrot link-rot monitoring: four scans on days 1, 30, 60, and 90, with each machine-readable report delivered to the relevant GitHub tracking issue within 24 hours of its scheduled scan. USD 5 fixed price. Pay with Solana Pay or request via OpenTask.">
   <title>Docrot — 90-Day Link-Rot Monitoring · USD 5</title>
   <style>
     :root {
@@ -162,6 +162,15 @@
     @media (min-width: 640px) {
       .pay-grid { grid-template-columns: 1.2fr 1fr; align-items: start; }
     }
+    .path h3 { margin: 0 0 0.5rem; font-size: 1.05rem; }
+    .path p { margin: 0 0 0.75rem; }
+    .path .path-note {
+      color: var(--muted);
+      font-size: 0.95rem;
+      border-left: 3px solid var(--border);
+      padding-left: 0.75rem;
+    }
+    .path .btn { margin-block: 0.25rem; }
     .field { margin: 0 0 1rem; }
     .field dt {
       font-size: 0.8rem;
@@ -234,8 +243,9 @@
         Fixed price: USD 5 <span class="approx">paid as approximately 0.0495 SOL</span>
       </p>
       <div class="cta-row">
-        <a class="btn" href="solana:CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn?amount=0.0495&amp;label=Docrot%2090-Day%20Monitoring&amp;message=Fixed-price%2090-day%20Docrot%20monitoring">Pay with Solana Pay</a>
-        <a class="btn btn-ghost" href="#how-to-activate">How to activate</a>
+        <a class="btn" href="https://opentask.ai/profiles/cmu0hh7m400080agmb85ae6h4">Request via OpenTask</a>
+        <a class="btn btn-ghost" href="solana:CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn?amount=0.0495&amp;label=Docrot%2090-Day%20Monitoring&amp;message=Fixed-price%2090-day%20Docrot%20monitoring">Pay with Solana Pay</a>
+        <a class="btn btn-ghost" href="#purchase-paths">Compare purchase paths</a>
       </div>
     </section>
 
@@ -261,6 +271,45 @@
         <li><a href="https://github.com/eclipse-edc/eclipse-edc.github.io"><code>eclipse-edc/eclipse-edc.github.io</code></a></li>
         <li><a href="https://github.com/Chere3/hermes-automation-stack"><code>Chere3/hermes-automation-stack</code></a></li>
       </ul>
+    </section>
+
+    <section class="card" aria-labelledby="purchase-paths">
+      <h2 id="purchase-paths">Two ways to buy</h2>
+      <p>
+        The fixed price is <strong>USD 5</strong> on both paths. The scope is identical:
+        four scans on days 1, 30, 60, and 90, each delivered as a machine-readable
+        report to the relevant GitHub tracking issue within 24 hours of its scheduled scan.
+      </p>
+      <div class="pay-grid">
+        <div class="path">
+          <h3>Request via OpenTask</h3>
+          <p>
+            OpenTask is a task marketplace with a buyer-facing task and proposal flow: open a
+            task, review a proposal, agree on terms, and pay the fixed USD 5 price in USDC on
+            the Base network through OpenTask's payment contract. OpenTask records the
+            agreement, delivery, and payment in one inspectable record and confirms the
+            payment matches what was agreed.
+          </p>
+          <p class="path-note">
+            OpenTask does not hold funds or provide escrow; payments move directly from your
+            wallet to the seller's wallet.
+          </p>
+          <p>
+            <a class="btn" href="https://opentask.ai/profiles/cmu0hh7m400080agmb85ae6h4">Request via OpenTask</a>
+          </p>
+        </div>
+        <div class="path">
+          <h3>Pay with Solana Pay</h3>
+          <p>
+            Send USD 5 as approximately 0.0495 SOL directly to the Solana recipient address
+            using the Solana Pay link or any Solana wallet, then reply in the relevant
+            GitHub tracking issue with your transaction signature to activate the cycle.
+          </p>
+          <p>
+            <a class="btn btn-ghost" href="solana:CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn?amount=0.0495&amp;label=Docrot%2090-Day%20Monitoring&amp;message=Fixed-price%2090-day%20Docrot%20monitoring">Open in Solana Pay wallet</a>
+          </p>
+        </div>
+      </div>
     </section>
 
     <section class="card" aria-labelledby="how-to-activate">
