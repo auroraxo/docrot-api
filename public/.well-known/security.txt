@@ -1,0 +1,5 @@
+Contact: https://github.com/auroraxo/docrot-api/security/advisories/new
+Contact: https://github.com/auroraxo
+Preferred-Languages: en
+Policy: https://github.com/auroraxo/docrot-api/blob/main/SECURITY.md
+Expires: 2027-09-28T00:00:00.000Z
