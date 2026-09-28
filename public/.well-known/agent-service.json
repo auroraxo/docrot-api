@@ -1,6 +1,6 @@
 {
  "name": "docrot-scan-api",
- "version": "1.2.0",
+ "version": "1.3.0",
  "description": "Paid link-rot scanning API for public GitHub repositories. Scans Markdown/MDX/reStructuredText/HTML files and reports broken remote http(s) links and images.",
  "docs": "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md",
  "baseUrl": "https://codebyaurora.com/docrot-api/",

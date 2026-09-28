@@ -56,6 +56,57 @@ _HTML_META_REFRESH = re.compile(
     r"url\s*=\s*(https?://[^\"'>\s]+)", re.IGNORECASE
 )
 
+_RST_CODE_DIRECTIVE = re.compile(r"^\s*\.\.\s+(?:code-block|sourcecode)::")
+
+
+def _strip_rst_literal_blocks(text: str) -> str:
+    """Blank indented literal blocks in reStructuredText.
+
+    A paragraph ending in ``::`` and ``code-block``/``sourcecode``
+    directives make the following indented block literal source; URLs
+    inside it are never rendered links, so live-checking them produced
+    false "broken" verdicts (same false-positive class as fenced Markdown
+    code, v1.2.0). Content lines are replaced by empty lines, keeping
+    reported line numbers exact. Deliberately conservative: rendered
+    directives like ``.. note::`` do NOT trigger stripping — their links
+    are real.
+    """
+    lines = text.split("\n")
+    blanked = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        stripped = lines[i].rstrip()
+        if _RST_CODE_DIRECTIVE.match(lines[i]):
+            pass
+        elif (stripped.endswith("::")
+              and len(stripped) > 2
+              and not stripped.lstrip().startswith(".. ")):
+            pass
+        else:
+            i += 1
+            continue
+        i += 1
+        while i < n and (lines[i].strip() == "" or lines[i][:1] in (" ", "\t")):
+            blanked.append(i)
+            i += 1
+    for idx in blanked:
+        lines[idx] = ""
+    return "\n".join(lines)
+
+
+def _strip_html_comments(text: str) -> str:
+    """Blank HTML comments (``<!-- ... -->``) in MDX/HTML text.
+
+    Comment content is never rendered, so href/src inside comments must
+    not be live-checked. Each comment is replaced by same-length
+    whitespace preserving every newline, so line numbers stay exact.
+    """
+    def _blank(m):
+        return "".join(c if c == "\n" else " " for c in m.group(0))
+
+    return re.sub(r"(?s)<!--.*?-->", _blank, text)
+
 
 def _is_remote_http(url: str) -> bool:
     if not url or len(url) > MAX_URL_LEN:
@@ -145,6 +196,7 @@ def _strip_code(text: str) -> str:
 
 def extract_markdown(text: str):
     text = _strip_code(text)
+    text = _strip_html_comments(text)
 
     out = []
     for m in _MD_INLINE.finditer(text):
@@ -170,6 +222,8 @@ def extract_rst(text: str):
     URL rule).
     """
     out = []
+    text = _strip_rst_literal_blocks(text)
+    text = _strip_html_comments(text)
     claimed = []  # (start, end) spans consumed by higher-priority rules
 
     def _claimed(span):
@@ -199,6 +253,7 @@ def extract_rst(text: str):
 
 
 def extract_html(text: str):
+    text = _strip_html_comments(text)
     out = []
     for m in _HTML_ATTR.finditer(text):
         url = next(g for g in m.groups() if g is not None)

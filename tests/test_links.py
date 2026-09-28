@@ -200,3 +200,44 @@ class CodeExclusionTests(unittest.TestCase):
         text = "See `Docs <https://rst.example/page>`_ now\n"
         self.assertEqual(links.extract_rst(text),
                          [("https://rst.example/page", 1)])
+
+
+class LiteralBlockAndCommentTests(unittest.TestCase):
+    """RST literal blocks and HTML comments are never rendered; their URLs must not be checked."""
+
+    def test_rst_literal_block_excluded(self):
+        text = ("Setup example::\n"
+                "\n"
+                "    curl https://bad.example/x\n"
+                "\n"
+                "Next `good <https://good.example/y>`__ text.\n")
+        self.assertEqual(links.extract_rst(text),
+                         [("https://good.example/y", 5)])
+
+    def test_rst_code_block_directive_excluded(self):
+        text = (".. code-block:: text\n"
+                "\n"
+                "    see https://bad2.example/z\n"
+                "\n"
+                "Then `ok <https://ok.example/a>`__.\n")
+        self.assertEqual(links.extract_rst(text),
+                         [("https://ok.example/a", 5)])
+
+    def test_rst_note_directive_links_kept(self):
+        text = (".. note::\n"
+                "\n"
+                "   Real docs live at `Docs <https://note.example/d>`__.\n")
+        self.assertEqual(links.extract_rst(text),
+                         [("https://note.example/d", 3)])
+
+    def test_html_comment_excluded(self):
+        text = ('<!-- <a href="https://badcomment.example/">x</a> -->\n'
+                '<a href="https://realcomment.example/">y</a>\n')
+        self.assertEqual(links.extract_html(text),
+                         [("https://realcomment.example/", 2)])
+
+    def test_mdx_comment_excluded(self):
+        text = ("<!-- https://badmdx.example/ -->\n"
+                "[ok](https://okmdx.example/y)\n")
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://okmdx.example/y", 2)])

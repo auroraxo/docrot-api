@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.2.0
+Version: 1.3.0
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -150,7 +150,7 @@ is returned.
 ## GET /health
 
 ```json
-{ "status": "ok", "service": "docrot-scan-api", "version": "1.2.0" }
+{ "status": "ok", "service": "docrot-scan-api", "version": "1.3.0" }
 ```
 
 `200` always (unless the process is down). No auth, safe for load balancers.
@@ -226,6 +226,15 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 | Currency | **SOL** |
 | Pay to | `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` |
 | Billing model | `manual-invoicing-pilot` |
+
+**Changed in 1.3.0:** URLs inside reStructuredText literal blocks (`::`
+paragraph intro, `code-block`/`sourcecode` directives) and inside HTML
+comments (`<!-- ... -->`) are no longer live-checked — neither ever renders
+a link (third instance of the false-positive class fixed in v1.1.0/v1.2.0).
+Rendered directives (`.. note::`, `.. seealso::`) keep their links; directive
+lines carrying arguments (`.. image:: x.png`) never trigger blanking.
+Line-number provenance stays exact. See Known limitations for the
+deliberately unchecked cases.
 
 **Changed in 1.2.0:** URLs inside fenced code blocks and inline code
 spans are no longer checked in Markdown/MDX files — code examples are
@@ -305,3 +314,15 @@ Coverage matrix (mapped to ISSUE.md):
 
 All network in unit tests is mocked (`unittest.mock`); the only real sockets
 are loopback connections inside the integration test.
+
+---
+
+## Known limitations
+
+- **Indented (4-space) Markdown code blocks are still live-checked.** A list
+  item's continuation line is visually identical to an indented code block;
+  stripping would hide real broken links (false negatives) — the worse
+  failure for a paid check. Same reasoning for RST comment bodies (`..` +
+  indented text), which cannot be distinguished from arbitrary directives
+  without a full parser. Fenced blocks (```/~~~), inline spans, RST literal
+  blocks (v1.3.0) and HTML comments (v1.3.0) are excluded.
