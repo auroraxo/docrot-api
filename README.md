@@ -17,7 +17,8 @@ no hidden behavior.
 The running service reports its own version on `GET /health` and in
 `.well-known/agent-service.json` — those endpoints are the source of
 truth, and this README deliberately pins no version. Release notes:
-[Releases](https://github.com/auroraxo/docrot-api/releases).
+[Releases](https://github.com/auroraxo/docrot-api/releases) and the
+[CHANGELOG](CHANGELOG.md).
 
 ## Pricing (manual invoicing / pilot)
 
