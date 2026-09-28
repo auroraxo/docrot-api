@@ -207,7 +207,7 @@ both return 200 with byte-identical content to
 | Limit | Env var | Default | Behavior when exceeded |
 |---|---|---|---|
 | Max request body | `DOCROT_MAX_REQUEST_BYTES` | 65536 (64 KiB) | `413 request_too_large` |
-| Max job wall time | `DOCROT_MAX_JOB_SECONDS` | 240 | `504 duration_exceeded` |
+| Max job wall time | `DOCROT_MAX_JOB_SECONDS` | 240 | `503 duration_exceeded` |
 | Max archive size | `DOCROT_MAX_ARCHIVE_BYTES` | 52428800 (50 MiB) | `413 archive_too_large` |
 | Max extracted file size | `DOCROT_MAX_FILE_BYTES` | 2097152 (2 MiB) | file skipped |
 | Max archive entries | `DOCROT_MAX_FILES` | 20000 | `413 too_many_files` |
@@ -216,8 +216,8 @@ both return 200 with byte-identical content to
 | Per-request check timeout | `DOCROT_CHECK_TIMEOUT_S` | 10 | `timeout` error for that URL |
 | Max redirects per URL | `DOCROT_CHECK_MAX_REDIRECTS` | 5 | `too_many_redirects` |
 | Max bytes read per response | `DOCROT_CHECK_MAX_READ_BYTES` | 65536 | hard cap, connection closed |
-| Fetch connect timeout | `DOCROT_FETCH_CONNECT_TIMEOUT_S` | 10 | `504` |
-| Fetch total timeout | `DOCROT_FETCH_TIMEOUT_S` | 60 | `504` |
+| Fetch connect timeout | `DOCROT_FETCH_CONNECT_TIMEOUT_S` | 10 | `503` |
+| Fetch total timeout | `DOCROT_FETCH_TIMEOUT_S` | 60 | `503` |
 
 Other env vars: `DOCROT_HOST`, `DOCROT_PORT`, `DOCROT_GITHUB_HOST`,
 `DOCROT_CODELOAD_HOST`, `DOCROT_ACCESS_LOG`, `DOCROT_JOB_LOG`,
