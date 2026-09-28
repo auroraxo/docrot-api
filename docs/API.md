@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.0.0
+Version: 1.1.0
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -150,7 +150,7 @@ is returned.
 ## GET /health
 
 ```json
-{ "status": "ok", "service": "docrot-scan-api", "version": "1.0.0" }
+{ "status": "ok", "service": "docrot-scan-api", "version": "1.1.0" }
 ```
 
 `200` always (unless the process is down). No auth, safe for load balancers.
@@ -206,6 +206,13 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 | Currency | **SOL** |
 | Pay to | `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` |
 | Billing model | `manual-invoicing-pilot` |
+
+**Changed in 1.1.0:** HTML entities in extracted URLs (`&amp;`, `&#x3D;`, ...)
+are now decoded before the liveness check, mirroring browser behavior —
+raw entity literals no longer produce false "broken" verdicts (the same
+false-positive class the open-source scanner fixed in v1.2.0; found here
+by cross-checking the paid path against scanner v5, fixed with 5
+regression tests).
 
 **Important:** this version does **not** enforce or automate billing. There
 is no paywall, no API keys, no on-chain verification. An operator reviews

@@ -5,6 +5,7 @@ Only remote http(s) URLs are returned; everything else
 (mailto:, ftp:, relative paths, anchors, protocol-relative) is ignored.
 """
 
+import html
 import re
 from urllib.parse import urlsplit
 
@@ -80,7 +81,10 @@ def _clean(url: str):
     url = url.strip()
     if url.startswith("<") and url.endswith(">"):
         url = url[1:-1]
-    return url
+    # Browsers decode HTML entities (&amp;, &#x3D;, &#38;, etc.) in attribute
+    # and inline URLs before dispatching the HTTP request; mirror that so the
+    # URL checker checks the real endpoint rather than a mangled entity literal.
+    return html.unescape(url)
 
 
 def _add(out, url, line):

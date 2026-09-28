@@ -116,3 +116,37 @@ class DispatchTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EntityDecodingTests(unittest.TestCase):
+    """HTML entities in URLs must be decoded before checking (scanner v5 class).
+
+    Browsers decode attribute values before dispatching the request; a checker
+    that live-tests the raw entity literal gets false positives (docrot v1.2.0).
+    """
+
+    def test_amp_in_markdown_url(self):
+        text = "![badge](https://cdn.test/x?a=1&amp;b=2)\n"
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://cdn.test/x?a=1&b=2", 1)])
+
+    def test_hex_and_named_entities_in_html_src(self):
+        text = '<img src="https://cdn.test/i.png?v&#x3D;4&amp;s&#x3D;18">\n'
+        self.assertEqual(links.extract_html(text),
+                         [("https://cdn.test/i.png?v=4&s=18", 1)])
+
+    def test_entity_in_html_attr_inside_markdown(self):
+        text = '<a href="https://ex.test/p?a=1&amp;b=2">x</a>\n'
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://ex.test/p?a=1&b=2", 1)])
+
+    def test_no_entity_output_verbatim(self):
+        # plain URLs with a literal & stay untouched by unescape
+        text = "[x](https://ex.test/p?a=1&b=2)\n"
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://ex.test/p?a=1&b=2", 1)])
+
+    def test_line_numbers_survive_decoding(self):
+        text = "# h\n\n![b](https://c.test/i.png?x&#x3D;1)\n"
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://c.test/i.png?x=1", 3)])
