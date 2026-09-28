@@ -104,6 +104,22 @@ def main():
         if not ok:
             failures.append(name)
 
+    # Root discovery: docs must be absolute — a relative pointer resolves
+    # against the service base and 404s behind the edge (the v1.4.1 bug).
+    status, ctype, raw = request(base, "GET", "/", {}, None, 15)
+    docs_url = ""
+    ok = status == 200 and "application/json" in ctype
+    try:
+        docs_url = json.loads(raw).get("docs", "")
+    except ValueError:
+        ok = False
+    if not docs_url.startswith("https://"):
+        ok = False
+    label = f"root docs pointer: {docs_url or 'missing'}"
+    print(f"  [{'ok' if ok else 'FAIL'}] {label}")
+    if not ok:
+        failures.append("root docs pointer")
+
     for name, method, path, headers, body, exp_status, exp_code in CASES:
         timeout = 90 if "edge-safe" in name else 15
         try:
@@ -130,7 +146,7 @@ def main():
         else:
             print(f"  [ok]   {name}: {status} {exp_code}")
 
-    total = len(CASES) + 2
+    total = len(CASES) + 3
     print(f"\n{total - len(failures)}/{total} passed"
           + (f" — FAILED: {', '.join(failures)}" if failures else ""))
     return 1 if failures else 0

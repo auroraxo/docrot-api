@@ -130,6 +130,9 @@ class IntegrationTests(unittest.TestCase):
                          "manual-invoicing-pilot")
         self.assertEqual(doc["pricing"]["payTo"],
                          "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn")
+        # v1.4.1: a relative docs pointer 404s behind the edge — must be absolute
+        self.assertEqual(doc["docs"],
+                         "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md")
 
     def test_wellknown_descriptor(self):
         status, _, body = self.request("GET", "/.well-known/agent-service.json")

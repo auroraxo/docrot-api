@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.4.1] — 2026-09-28
+
+### Fixed
+- **Root endpoint `docs` pointer is absolute now:** `GET /` returned
+  `"docs": "docs/API.md"` — a relative path that resolves against the
+  service base and 404s behind the public edge, breaking the discovery
+  chain for machine consumers. It now returns the same absolute URL the
+  agent descriptor carries (`https://github.com/auroraxo/docrot-api/blob/main/docs/API.md`).
+
+### Added
+- **Edge contract replay checks root discovery (17 → 18 checks):** the root
+  `docs` pointer must be an absolute `https://` URL — closing the exact gap
+  that let this drift ship. Regression assertion added to
+  `test_root_describes_service` (suite stays 119 green).
+
+---
+
 ## [1.4.0] — 2026-09-28
 
 ### Changed — Breaking HTTP Statuses (same `error.code`)

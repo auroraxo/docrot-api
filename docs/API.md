@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.4.0
+Version: 1.4.1
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -173,7 +173,7 @@ is returned.
 ## GET /health
 
 ```json
-{ "status": "ok", "service": "docrot-scan-api", "version": "1.4.0" }
+{ "status": "ok", "service": "docrot-scan-api", "version": "1.4.1" }
 ```
 
 `200` always (unless the process is down). No auth, safe for load balancers.
@@ -249,6 +249,11 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 | Currency | **SOL** |
 | Pay to | `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` |
 | Billing model | `manual-invoicing-pilot` |
+
+**Changed in 1.4.1:** `GET /` now returns an **absolute** `docs` URL —
+the previous relative pointer (`docs/API.md`) resolved against the service
+base and 404’d behind the edge. Root discovery is now part of
+`tools/edge_contract_replay.py` (18 checks).
 
 **Changed in 1.4.0 (breaking HTTP statuses):** every error previously mapped
 to `502`/`504` now returns `404`, `403`, or `503` (table below) — the public edge

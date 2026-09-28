@@ -260,7 +260,7 @@ class DocrotHandler(BaseHTTPRequestHandler):
                 "terms": "Payable after result delivery; first external pilot "
                          "scan free; invoiced manually - NOT automatic.",
             },
-            "docs": "docs/API.md",
+            "docs": "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md",
         }
 
     # --------------------------------------------------------------- noise
