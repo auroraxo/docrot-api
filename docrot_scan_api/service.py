@@ -98,7 +98,7 @@ class ScanService:
                           durationMs=elapsed_ms())
                 raise JobError("duration_exceeded",
                                f"scan exceeded {self.config.max_job_seconds}s limit",
-                               504)
+                               503)
 
         if len(seen_urls) > self.config.max_urls:
             msg = (f"scan found {len(seen_urls)} distinct remote URLs; "

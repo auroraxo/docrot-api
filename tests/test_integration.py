@@ -238,7 +238,7 @@ class IntegrationTests(unittest.TestCase):
 
         def failing_fetch(owner, repo, ref):
             raise FetchError("repository_or_ref_not_found",
-                             "upstream returned HTTP 404", 502)
+                             "upstream returned HTTP 404", 404)
 
         original = svc._fetcher
         svc._fetcher = failing_fetch
@@ -248,7 +248,7 @@ class IntegrationTests(unittest.TestCase):
                 headers={"Content-Type": "application/json"})
         finally:
             svc._fetcher = original
-        self.assertEqual(status, 502)
+        self.assertEqual(status, 404)
         self.assertEqual(json.loads(body)["error"]["code"],
                          "repository_or_ref_not_found")
 

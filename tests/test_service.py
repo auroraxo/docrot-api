@@ -122,11 +122,11 @@ class ScanServiceTests(unittest.TestCase):
         svc = ScanService(cfg)
         from docrot_scan_api.extract import FetchError
         svc._fetcher = lambda *a: (_ for _ in ()).throw(
-            FetchError("repository_or_ref_not_found", "upstream 404", 502))
+            FetchError("repository_or_ref_not_found", "upstream 404", 404))
         with self.assertRaises(JobError) as cm:
             svc.run_scan(REPO, "req-5")
         self.assertEqual(cm.exception.code, "repository_or_ref_not_found")
-        self.assertEqual(cm.exception.http_status, 502)
+        self.assertEqual(cm.exception.http_status, 404)
 
     def test_fetcher_receives_codeload_ref(self):
         cfg = make_config()
@@ -154,7 +154,7 @@ class ScanServiceTests(unittest.TestCase):
         with self.assertRaises(JobError) as cm:
             svc.run_scan(REPO, "req-7")
         self.assertEqual(cm.exception.code, "duration_exceeded")
-        self.assertEqual(cm.exception.http_status, 504)
+        self.assertEqual(cm.exception.http_status, 503)
 
     def test_job_logger_jsonl(self):
         import io

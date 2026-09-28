@@ -35,7 +35,8 @@ _GITHUB_IP_RE = re.compile(
 
 
 class FetchError(Exception):
-    def __init__(self, code: str, message: str, http_status: int = 502):
+    # Edge-safe default: CDNs replace origin 502/504 bodies (docs/API.md "Why no 502/504?")
+    def __init__(self, code: str, message: str, http_status: int = 503):
         super().__init__(message)
         self.code = code
         self.message = message
@@ -84,24 +85,24 @@ def fetch_archive(url: str, *, max_bytes: int, connect_timeout_s: float,
     except HTTPError as exc:
         if exc.code in (404, 410):
             raise FetchError("repository_or_ref_not_found",
-                             f"upstream returned HTTP {exc.code}", 502) from exc
+                             f"upstream returned HTTP {exc.code}", 404) from exc
         if exc.code in (401, 403):
             raise FetchError("repository_not_public",
                              f"upstream returned HTTP {exc.code} "
-                             "(private or blocked)", 502) from exc
+                             "(private or blocked)", 403) from exc
         if exc.code == 429:
             raise FetchError("upstream_rate_limited",
                              "upstream returned HTTP 429", 429) from exc
         raise FetchError("upstream_error",
-                         f"upstream returned HTTP {exc.code}", 502) from exc
+                         f"upstream returned HTTP {exc.code}", 503) from exc
     except (URLError, ssl.SSLError, ConnectionError, OSError) as exc:
         raise FetchError("upstream_unreachable",
-                         f"could not reach upstream: {exc}", 504) from exc
+                         f"could not reach upstream: {exc}", 503) from exc
 
     with resp:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            raise FetchError("fetch_timeout", "archive download timed out", 504)
+            raise FetchError("fetch_timeout", "archive download timed out", 503)
         resp.fp.raw._sock.settimeout(remaining)
         chunks = []
         total = 0
@@ -110,7 +111,7 @@ def fetch_archive(url: str, *, max_bytes: int, connect_timeout_s: float,
                 left = deadline - time.monotonic()
                 if left <= 0:
                     raise FetchError("fetch_timeout",
-                                     "archive download timed out", 504)
+                                     "archive download timed out", 503)
                 chunk = resp.read(min(64 * 1024, max(1, int(left * 1000))))
                 if not chunk:
                     break
@@ -121,7 +122,7 @@ def fetch_archive(url: str, *, max_bytes: int, connect_timeout_s: float,
                 chunks.append(chunk)
         except (ConnectionError, OSError, ssl.SSLError) as exc:
             raise FetchError("fetch_interrupted",
-                             f"download interrupted: {exc}", 504) from exc
+                             f"download interrupted: {exc}", 503) from exc
     return b"".join(chunks)
 
 
@@ -148,7 +149,7 @@ def extract_files(archive: bytes, *, max_files: int, max_file_bytes: int) -> Fet
         tf = tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz")
     except tarfile.TarError as exc:
         raise FetchError("archive_unreadable",
-                         f"not a valid tar.gz archive: {exc}", 502) from exc
+                         f"not a valid tar.gz archive: {exc}", 503) from exc
 
     with tf:
         root_prefix = None

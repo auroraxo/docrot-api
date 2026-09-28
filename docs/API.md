@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.3.0
+Version: 1.4.0
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -128,17 +128,25 @@ All errors share one shape:
 | 422 | `invalid_ref` | Ref fails the safe-character/shape rules |
 | 422 | `no_documentation_files` | Archive contained no scannable doc files |
 | 429 | `upstream_rate_limited` | GitHub codeload returned 429 |
-| 502 | `repository_or_ref_not_found` | codeload returned 404/410 |
-| 502 | `repository_not_public` | codeload returned 401/403 |
-| 502 | `upstream_error` / `archive_unreadable` | Other upstream failure or bad archive |
-| 504 | `fetch_timeout` / `fetch_interrupted` / `upstream_unreachable` | Archive download failed/timed out |
-| 504 | `duration_exceeded` | Job exceeded `DOCROT_MAX_JOB_SECONDS` |
+| 404 | `repository_or_ref_not_found` | codeload returned 404/410 |
+| 403 | `repository_not_public` | codeload returned 401/403 |
+| 503 | `upstream_error` / `archive_unreadable` | Other upstream failure or bad archive |
+| 503 | `fetch_timeout` / `fetch_interrupted` / `upstream_unreachable` | Archive download failed/timed out |
+| 503 | `duration_exceeded` | Job exceeded `DOCROT_MAX_JOB_SECONDS` |
 | 413 | `archive_too_large` | Archive over `DOCROT_MAX_ARCHIVE_BYTES` |
 | 413 | `too_many_files` | Archive contains more than `DOCROT_MAX_FILES` entries |
 | 413 | `too_many_urls` | More than `DOCROT_MAX_URLS` distinct URLs found |
 | 404 | `not_found` | Unknown route |
 | 405 | `method_not_allowed` | e.g. `GET /v1/scan` |
 | 500 | `internal_error` | Unexpected server fault (honest, never hidden) |
+
+**Why no `502`/`504`?** This deployment’s public edge sits behind Cloudflare,
+which replaces origin `502`/`504` response bodies with a 16-byte plain-text error
+page — the machine-readable JSON would be lost for exactly the upstream-failure
+codes that matter most. Verified by edge probe: `403`, `404`, `424`, `429`, `500`
+and `503` pass through byte-intact; `502` and `504` do not. The codes above were
+chosen to survive that edge while `error.code` remains the precise contract
+(remapped from 502/504 in v1.4.0).
 
 Note: job-level errors (`archive_too_large`, `duration_exceeded`, ...) are
 **honest failures** — the job ran and was aborted for the stated reason; the
@@ -150,7 +158,7 @@ is returned.
 ## GET /health
 
 ```json
-{ "status": "ok", "service": "docrot-scan-api", "version": "1.3.0" }
+{ "status": "ok", "service": "docrot-scan-api", "version": "1.4.0" }
 ```
 
 `200` always (unless the process is down). No auth, safe for load balancers.
@@ -226,6 +234,13 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 | Currency | **SOL** |
 | Pay to | `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` |
 | Billing model | `manual-invoicing-pilot` |
+
+**Changed in 1.4.0 (breaking HTTP statuses):** every error previously mapped
+to `502`/`504` now returns `404`, `403`, or `503` (table below) — the public edge
+(Cloudflare) replaces origin `502`/`504` response bodies with its own plain-text
+error page, silently stripping the JSON contract for exactly the upstream-failure
+cases. `error.code` values are unchanged; **branch on `error.code`, not HTTP
+status**. See "Why no 502/504?" below.
 
 **Changed in 1.3.0:** URLs inside reStructuredText literal blocks (`::`
 paragraph intro, `code-block`/`sourcecode` directives) and inside HTML
