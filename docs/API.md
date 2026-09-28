@@ -148,6 +148,21 @@ and `503` pass through byte-intact; `502` and `504` do not. The codes above were
 chosen to survive that edge while `error.code` remains the precise contract
 (remapped from 502/504 in v1.4.0).
 
+Two further edge behaviours are verified by `tools/edge_contract_replay.py` and
+handled by the reference deployment in `deploy/nginx.conf`:
+
+- **Unknown routes answer JSON.** The proxy uses a *prefix* location for the API
+  namespace, so `GET /…/anything-else` reaches the app and returns the documented
+  `404 {"error":{"code":"not_found"}}` envelope instead of website HTML.
+- **Oversized bodies answer JSON.** nginx enforces `client_max_body_size` before
+  the app can, so its `413` is mapped (`error_page 413`) onto the same JSON
+  envelope the app itself would return (`request_too_large`).
+
+**Client User-Agent:** the edge challenges the default Python stdlib UA
+(`Python-urllib/3.x` → `403`, code 1010) while `python-requests`, `httpx`,
+`aiohttp` and other common clients pass. When calling from raw `urllib`, set an
+explicit `User-Agent` (as this service's own replay tool does).
+
 Note: job-level errors (`archive_too_large`, `duration_exceeded`, ...) are
 **honest failures** — the job ran and was aborted for the stated reason; the
 request is still billed as a completed scan only when a `200` with `receipt`

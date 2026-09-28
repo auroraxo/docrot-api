@@ -37,6 +37,14 @@ including the billing block above. The SOL amount shown is a **reference
 quote**; the USD price is the contractual price. Payment is on trust for now:
 you receive the result first.
 
+## Client notes
+
+**Name your client.** The public edge (Cloudflare) challenges the default Python
+standard-library User-Agent (`Python-urllib/3.x`) with a `403` / error code 1010;
+`python-requests`, `httpx`, `aiohttp`, Go, node and Java clients pass untouched.
+Send an explicit `User-Agent` header when you use raw `urllib` — every example in
+this repository does.
+
 ## Quick start
 
 ```bash
