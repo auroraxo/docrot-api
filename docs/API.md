@@ -172,6 +172,26 @@ Machine-readable service descriptor (served from
 scan request/response, pricing block, limits, and capabilities. Agents can
 use this for zero-context onboarding.
 
+## GET /.well-known/security.txt
+
+Machine-readable security contact file (`public/.well-known/security.txt`,
+[RFC 9116](https://www.rfc-editor.org/rfc/rfc9116.html)): private reporting
+links, acknowledgement goal, expiry. Served from two public paths:
+
+1. `https://codebyaurora.com/.well-known/security.txt` — canonical RFC 9116
+   path; host step: the file is copied to the web root
+   (`/var/www/html/.well-known/security.txt`).
+2. `https://codebyaurora.com/docrot-api/.well-known/security.txt` —
+   service-prefixed path; nginx `alias` block next to the
+   `agent-service.json` location.
+
+**Deploy note:** `rsync public/` into the service tree covers the app copy
+only. The two public paths are host-side (web-root copy + nginx alias) and
+must be kept in place across host rebuilds. After any host change, verify
+both return 200 with byte-identical content to
+`public/.well-known/security.txt` — a deployed security file that answers
+404 is exactly the rot class this project exists to eliminate.
+
 ---
 
 ## Limits
