@@ -150,3 +150,53 @@ class EntityDecodingTests(unittest.TestCase):
         text = "# h\n\n![b](https://c.test/i.png?x&#x3D;1)\n"
         self.assertEqual(links.extract_markdown(text),
                          [("https://c.test/i.png?x=1", 3)])
+
+
+class CodeExclusionTests(unittest.TestCase):
+    """Fenced/inline code is not rendered; live-checking its URLs would be a false positive."""
+
+    def test_fenced_code_urls_excluded(self):
+        text = ("[real](https://a.test/x)\n"
+                "```python\n"
+                "[demo](https://bad.test/demo)\n"
+                "```\n")
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://a.test/x", 1)])
+
+    def test_tilde_fence_excluded(self):
+        text = ("~~~\n"
+                "https://bad.test/tilde\n"
+                "~~~\n"
+                "[ok](https://a.test/y)\n")
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://a.test/y", 4)])
+
+    def test_unclosed_fence_extends_to_end(self):
+        text = ("[real](https://a.test/x)\n"
+                "```bash\n"
+                "curl https://bad.test/late\n")
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://a.test/x", 1)])
+
+    def test_inline_code_span_blanked(self):
+        text = "run `see https://bad.test/x` then [ok](https://a.test/y)\n"
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://a.test/y", 1)])
+
+    def test_line_numbers_preserved_after_stripping(self):
+        text = ("intro\n"
+                "\n"
+                "```md\n"
+                "![x](https://bad.test/i.png)\n"
+                "\n"
+                "more\n"
+                "```\n"
+                "\n"
+                "[live](https://a.test/z)\n")
+        self.assertEqual(links.extract_markdown(text),
+                         [("https://a.test/z", 9)])
+
+    def test_rst_backticks_untouched(self):
+        text = "See `Docs <https://rst.example/page>`_ now\n"
+        self.assertEqual(links.extract_rst(text),
+                         [("https://rst.example/page", 1)])

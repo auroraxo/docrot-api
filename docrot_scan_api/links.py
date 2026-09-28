@@ -98,7 +98,54 @@ def _add(out, url, line):
     out.append((url, line))
 
 
+_FENCE_OPEN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})", re.MULTILINE)
+
+
+def _strip_code(text: str) -> str:
+    """Blank out fenced code blocks and inline code spans in Markdown/MDX.
+
+    Code examples are not rendered, so live-checking the URLs inside them
+    only produces false "broken" verdicts in customer reports — the same
+    false-positive class as entity-encoded URLs (fixed in v1.1.0). This
+    mirrors the open-source scanner's ``strip_code``.
+
+    Only newlines matter for provenance: every removed line is replaced by
+    an empty line, so reported line numbers stay exact. Per CommonMark, an
+    unclosed fence extends to the end of the document. Applied to the
+    Markdown extractor only: backticks are ordinary link syntax in RST.
+    """
+    lines = text.split("\n")
+    out = []
+    i = 0
+    n = len(lines)
+    while i < n:
+        m = _FENCE_OPEN.match(lines[i])
+        if not m:
+            out.append(lines[i])
+            i += 1
+            continue
+        marker = m.group(1)
+        close = re.compile(r"^[ \t]{0,3}" + re.escape(marker[0]) +
+                           "{%d,}[ \t]*$" % len(marker))
+        out.append("")          # the opening fence line
+        i += 1
+        while i < n and not close.match(lines[i]):
+            out.append("")      # every content line keeps its position
+            i += 1
+        if i < n:
+            out.append("")      # the closing fence line
+            i += 1
+    stripped = "\n".join(out)
+
+    def _blank_span(m):
+        return "".join(c if c == "\n" else " " for c in m.group(0))
+
+    return re.sub(r"(?s)(`+).*?\1", _blank_span, stripped)
+
+
 def extract_markdown(text: str):
+    text = _strip_code(text)
+
     out = []
     for m in _MD_INLINE.finditer(text):
         _add(out, m.group(2), _line_of(text, m.start(2)))

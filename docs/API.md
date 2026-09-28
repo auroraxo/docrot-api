@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.1.0
+Version: 1.2.0
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -150,7 +150,7 @@ is returned.
 ## GET /health
 
 ```json
-{ "status": "ok", "service": "docrot-scan-api", "version": "1.1.0" }
+{ "status": "ok", "service": "docrot-scan-api", "version": "1.2.0" }
 ```
 
 `200` always (unless the process is down). No auth, safe for load balancers.
@@ -206,6 +206,13 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 | Currency | **SOL** |
 | Pay to | `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` |
 | Billing model | `manual-invoicing-pilot` |
+
+**Changed in 1.2.0:** URLs inside fenced code blocks and inline code
+spans are no longer checked in Markdown/MDX files — code examples are
+not rendered, so live-checking them produced false "broken" verdicts
+(same false-positive class as v1.1.0; mirrors the open-source scanner’s
+``strip_code``; line-number provenance is preserved exactly; reStructuredText
+is unaffected because backticks there are ordinary link syntax).
 
 **Changed in 1.1.0:** HTML entities in extracted URLs (`&amp;`, `&#x3D;`, ...)
 are now decoded before the liveness check, mirroring browser behavior —
