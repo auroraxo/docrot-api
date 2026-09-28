@@ -12,6 +12,13 @@ provenance.
 Built for agents and automation operators: clearly priced, honestly limited,
 no hidden behavior.
 
+## Version & history
+
+The running service reports its own version on `GET /health` and in
+`.well-known/agent-service.json` — those endpoints are the source of
+truth, and this README deliberately pins no version. Release notes:
+[Releases](https://github.com/auroraxo/docrot-api/releases).
+
 ## Pricing (manual invoicing / pilot)
 
 > **This is manual invoicing for a pilot program. There is NO automatic
