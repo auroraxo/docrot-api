@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.5.0
+Version: 1.6.0
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -173,7 +173,7 @@ is returned.
 ## GET /health
 
 ```json
-{ "status": "ok", "service": "docrot-scan-api", "version": "1.5.0" }
+{ "status": "ok", "service": "docrot-scan-api", "version": "1.6.0" }
 ```
 
 `200` always (unless the process is down). No auth, safe for load balancers.

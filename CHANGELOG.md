@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.6.0] — 2026-09-29
+
+### Fixed
+- **Parity with the open-source scanner v8 (docrot v1.6.0), closing the two
+  phantom classes found during the scanner's v7 rescan verification:**
+  fenced-code stripping now tolerates deep indentation (0-7 spaces — fences
+  inside list items render as code on GitHub), and inline-code pairing is
+  list-item-local (an odd backtick run in one list item no longer shifts
+  the pairing of the next item's balanced span). Each defect was verified
+  against GitHub's rendered HTML on real repositories before the fix.
+- Line-number provenance unchanged; suite 126 -> **128**.
+
 ## [1.5.0] — 2026-09-29
 
 ### Fixed

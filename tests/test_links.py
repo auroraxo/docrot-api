@@ -50,6 +50,21 @@ class MarkdownExtractionTests(unittest.TestCase):
 
 
 class InlineCodeSpanPairingTests(unittest.TestCase):
+    def test_deep_indented_fence_inside_list_item_not_extracted(self):
+        md = ("- For components: use\n\n"
+              "    ```jsx\n"
+              "    // bad\n"
+              "    <img src=\"hello.jpg\" />\n"
+              "    ```\n\n"
+              "    After the block.\n")
+        self.assertEqual(links.extract_markdown(md), [])
+
+    def test_odd_backtick_in_item_does_not_leak_next_items_span(self):
+        md = ("- stray ` tick here\n"
+              "- Never fabricate or use `![alt](URL)` markdown\n")
+        self.assertEqual(links.extract_markdown(md), [])
+
+
     def test_image_example_in_code_span_not_extracted(self):
         text = "put a reference - `![](<path from flow root>)` for an image\n"
         self.assertEqual(links.extract_markdown(text), [])

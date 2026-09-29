@@ -149,7 +149,7 @@ def _add(out, url, line):
     out.append((url, line))
 
 
-_FENCE_OPEN = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})", re.MULTILINE)
+_FENCE_OPEN = re.compile(r"^[ \t]{0,7}(`{3,}|~{3,})", re.MULTILINE)
 
 
 def _strip_code(text: str) -> str:
@@ -176,7 +176,7 @@ def _strip_code(text: str) -> str:
             i += 1
             continue
         marker = m.group(1)
-        close = re.compile(r"^[ \t]{0,3}" + re.escape(marker[0]) +
+        close = re.compile(r"^[ \t]{0,7}" + re.escape(marker[0]) +
                            "{%d,}[ \t]*$" % len(marker))
         out.append("")          # the opening fence line
         i += 1
@@ -206,26 +206,51 @@ def _strip_code(text: str) -> str:
         if re.fullmatch(r"\n[ \t]*\n", part):
             out.append(part)
             continue
-        runs = [(m.start(), m.end(), len(m.group(0))) for m in re.finditer(r"`+", part)]
-        if len(runs) < 2:
-            out.append(part)
-            continue
-        pos = 0
-        i = 0
-        n = len(runs)
-        while i < n:
-            length = runs[i][2]
-            j = i + 1
-            while j < n and runs[j][2] != length:
-                j += 1
-            if j < n:
-                out.append(part[pos:runs[i][0]])
-                out.append(_blank(part[runs[i][0]:runs[j][1]]))
-                pos = runs[j][1]
-                i = j + 1
-            else:
-                i += 1        # unclosed run renders literally
-        out.append(part[pos:])
+        # CommonMark: each list item is its own block with its own inline
+        # content; backtick runs never pair ACROSS an item boundary (parity
+        # with the open-source scanner v8, docrot v1.6.0: an odd run in one
+        # item shifted the pairing of the next item's balanced span and
+        # left an image EXAMPLE live — verified on a real leaked-prompts
+        # file where GitHub renders the span as <code>).
+        subs = []
+        last = 0
+        for m in re.finditer(r"(?m)^[ \t]*(?:[-*+]|\d+[.)])[ \t]+", part):
+            if m.start() > last:
+                subs.append(part[last:m.start()])
+                last = m.start()
+        subs.append(part[last:])
+        for sub in subs:
+            out.append(_pair_backtick_runs(sub))
+    return "".join(out)
+
+
+def _pair_backtick_runs(part):
+    """Blank one balanced backtick span per equal-length run pair."""
+    # Only newlines matter for provenance: every removed character is
+    # replaced by a space, so reported line numbers stay exact.
+    def _blank(text):
+        return "".join(c if c == "\n" else " " for c in text)
+
+    runs = [(m.start(), m.end(), len(m.group(0))) for m in re.finditer(r"`+", part)]
+    if len(runs) < 2:
+        return part
+    out = []
+    pos = 0
+    i = 0
+    n = len(runs)
+    while i < n:
+        length = runs[i][2]
+        j = i + 1
+        while j < n and runs[j][2] != length:
+            j += 1
+        if j < n:
+            out.append(part[pos:runs[i][0]])
+            out.append(_blank(part[runs[i][0]:runs[j][1]]))
+            pos = runs[j][1]
+            i = j + 1
+        else:
+            i += 1        # unclosed run renders literally
+    out.append(part[pos:])
     return "".join(out)
 
 
