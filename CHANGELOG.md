@@ -8,6 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.5.0] — 2026-09-29
+
+### Fixed
+- **Inline-code span pairing is CommonMark-accurate** (parity with the
+  open-source scanner v7, docrot v1.5.1/v1.5.2): backtick runs pair by
+  equal run length, paragraph-locally, instead of positionally. Found by
+  manually verifying a scanner false positive on a real 68 KB doc whose
+  code-span image example (rendered by GitHub as `<code>`) the API would
+  likewise have live-checked into a false "broken" verdict. The
+  paragraph-local rule also closes the triple-newline edge: a content
+  part starting with a single newline is no longer misrouted as a
+  blank-line separator. Line-number provenance is unchanged: blanked
+  spans keep their newlines.
+
+### Added
+- 5 regression tests: phantom span, paragraph locality, triple-newline
+  edge, real link between spans, interleaved backtick lengths; suite
+  119 -> **124 green**.
+
+---
+
 ## [1.4.1] — 2026-09-28
 
 ### Fixed

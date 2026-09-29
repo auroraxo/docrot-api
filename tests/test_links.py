@@ -49,6 +49,27 @@ class MarkdownExtractionTests(unittest.TestCase):
         self.assertIn(("https://mdx.test/page", 3), result)
 
 
+class InlineCodeSpanPairingTests(unittest.TestCase):
+    def test_image_example_in_code_span_not_extracted(self):
+        text = "put a reference - `![](<path from flow root>)` for an image\n"
+        self.assertEqual(links.extract_markdown(text), [])
+
+    def test_spans_do_not_pair_across_blank_lines(self):
+        text = "a ` x\n\nb `![p](https://leak.test/p.png)` c\n"
+        self.assertEqual(links.extract_markdown(text), [])
+
+    def test_triple_newline_before_span_still_pairs(self):
+        text = "a\n\n\nb `![p](https://leak.test/p.png)` c\n"
+        self.assertEqual(links.extract_markdown(text), [])
+
+    def test_real_link_between_spans_still_extracted(self):
+        text = "run `cat x` then ![ok](https://real.test/x.png) end\n"
+        self.assertIn(("https://real.test/x.png", 1), links.extract_markdown(text))
+
+    def test_interleaved_backtick_lengths(self):
+        text = "fenced ` ```html `, ` ```svg ` blocks and ![r](https://real.test/y.png)\n"
+        self.assertIn(("https://real.test/y.png", 1), links.extract_markdown(text))
+
 class RstExtractionTests(unittest.TestCase):
     def test_named_and_anonymous_links(self):
         text = ("Named `docs <https://rst.test/docs>`_\n"

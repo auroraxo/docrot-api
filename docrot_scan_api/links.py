@@ -188,10 +188,45 @@ def _strip_code(text: str) -> str:
             i += 1
     stripped = "\n".join(out)
 
-    def _blank_span(m):
-        return "".join(c if c == "\n" else " " for c in m.group(0))
+    def _blank(text):
+        return "".join(c if c == "\n" else " " for c in text)
 
-    return re.sub(r"(?s)(`+).*?\1", _blank_span, stripped)
+    # Inline spans pair by EQUAL RUN LENGTH, paragraph-locally (CommonMark).
+    # The previous positional regex ((`+).*?\1) deviated on documents that
+    # interleave run lengths: a phantom image inside an unclosed-looking
+    # span could survive stripping and get live-checked as a false broken
+    # verdict (observed on a real 68 KB doc; GitHub renders the span as
+    # <code>). A backtick run never pairs across a blank line, so the text
+    # splits on blank lines first; a content part may legitimately start
+    # with a single newline (triple-newline sequences), so the separator
+    # test is a full match on the blank-line pattern, not startswith.
+    parts = re.split(r"(\n[ \t]*\n)", stripped)
+    out = []
+    for part in parts:
+        if re.fullmatch(r"\n[ \t]*\n", part):
+            out.append(part)
+            continue
+        runs = [(m.start(), m.end(), len(m.group(0))) for m in re.finditer(r"`+", part)]
+        if len(runs) < 2:
+            out.append(part)
+            continue
+        pos = 0
+        i = 0
+        n = len(runs)
+        while i < n:
+            length = runs[i][2]
+            j = i + 1
+            while j < n and runs[j][2] != length:
+                j += 1
+            if j < n:
+                out.append(part[pos:runs[i][0]])
+                out.append(_blank(part[runs[i][0]:runs[j][1]]))
+                pos = runs[j][1]
+                i = j + 1
+            else:
+                i += 1        # unclosed run renders literally
+        out.append(part[pos:])
+    return "".join(out)
 
 
 def extract_markdown(text: str):
