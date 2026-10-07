@@ -250,6 +250,19 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 | Pay to | `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` |
 | Billing model | `manual-invoicing-pilot` |
 
+### How a customer pays & gets a scan
+
+1. **Scan first** — `POST /v1/scan` with a public GitHub repository URL. The
+   first external pilot scan is free.
+2. **Result before money** — a `200` response with a `receipt` object is a
+   completed, billable scan at **US$1.00**. Any `error.code` (4xx/5xx JSON
+   contract) is never billed.
+3. **Manual invoice** — an operator reviews the job log and issues the
+   invoice for that scan; payment is in **SOL** to the `Pay to` address
+   above, **after** result delivery.
+4. **No automation** — no paywall, no API keys, no on-chain verification;
+   access grant and invoice are both manual during the pilot.
+
 **Changed in 1.4.1:** `GET /` now returns an **absolute** `docs` URL —
 the previous relative pointer (`docs/API.md`) resolved against the service
 base and 404’d behind the edge. Root discovery is now part of

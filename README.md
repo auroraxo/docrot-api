@@ -38,6 +38,20 @@ including the billing block above. The SOL amount shown is a **reference
 quote**; the USD price is the contractual price. Payment is on trust for now:
 you receive the result first.
 
+### How a customer pays & gets a scan
+
+1. **Scan first.** Call `POST /v1/scan` with a public GitHub repository URL
+   (exact curl in [Quick start](#quick-start)). Your first external pilot
+   scan is free.
+2. **Result before money.** A `200` response containing a `receipt` object is
+   a completed, billable scan (**US$1.00**). Rejected requests, errors and
+   timeouts are never billed.
+3. **Invoice follows manually.** An operator reviews the job log and issues
+   the invoice for the scan above; you pay in **SOL** to
+   `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` **after** result delivery.
+4. **Nothing automatic.** No paywall, no API keys, no on-chain verification —
+   the grant of access and the invoice are both manual during the pilot.
+
 ## Client notes
 
 **Name your client.** The public edge (Cloudflare) challenges the default Python
