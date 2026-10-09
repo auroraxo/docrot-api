@@ -79,3 +79,19 @@ class Config:
         self.sol_pay_to = "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn"
         self.sol_reference_quote = "0.0065"
         self.billing_model = "manual-invoicing-pilot"
+
+        # Self-serve checkout (direct purchase path)
+        job_log = os.environ.get("DOCROT_JOB_LOG", "") or None
+        default_store = (os.path.join(os.path.dirname(job_log),
+                                      "checkout-orders.json")
+                         if job_log else "checkout-orders.json")
+        self.checkout_store_path = (
+            os.environ.get("DOCROT_CHECKOUT_STORE", "") or default_store)
+        self.checkout_ttl_s = _int_env("DOCROT_CHECKOUT_TTL_S", 86400,
+                                       300, 604800)
+        self.checkout_verify_cooldown_s = _int_env(
+            "DOCROT_CHECKOUT_VERIFY_COOLDOWN_S", 10, 0, 3600)
+        self.solana_rpc_url = os.environ.get("DOCROT_SOLANA_RPC", "") or (
+            "https://api.mainnet-beta.solana.com")
+        self.solana_rpc_timeout_s = _int_env("DOCROT_SOLANA_RPC_TIMEOUT_S",
+                                             5, 1, 30)

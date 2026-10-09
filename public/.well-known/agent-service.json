@@ -1,35 +1,193 @@
 {
- "name": "docrot-scan-api",
- "version": "1.6.0",
+ "baseUrl": "https://codebyaurora.com/docrot-api/",
+ "capabilities": [
+  "public-github-repo-scan",
+  "markdown-link-extraction",
+  "mdx-link-extraction",
+  "rst-link-extraction",
+  "html-link-extraction",
+  "concurrent-head-get-liveness-check",
+  "ssrf-protected"
+ ],
  "description": "Paid link-rot scanning API for public GitHub repositories. Scans Markdown/MDX/reStructuredText/HTML files and reports broken remote http(s) links and images.",
  "docs": "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md",
- "baseUrl": "https://codebyaurora.com/docrot-api/",
  "endpoints": {
-  "scan": {
+  "checkout": {
+   "description": "Create a self-serve payment order (US$1 in SOL) for an already delivered scan.",
    "method": "POST",
-   "path": "/v1/scan",
-   "url": "https://codebyaurora.com/docrot-api/v1/scan",
+   "path": "/v1/checkout",
    "requestContentType": "application/json",
    "requestSchema": {
-    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+     "ref": {
+      "description": "Optional git ref",
+      "maxLength": 200,
+      "type": "string"
+     },
+     "repository": {
+      "description": "Public GitHub HTTPS repository URL",
+      "type": "string"
+     },
+     "requestId": {
+      "description": "receipt.requestId this order pays for",
+      "maxLength": 64,
+      "type": "string"
+     }
+    },
     "required": [
      "repository"
     ],
-    "properties": {
-     "repository": {
-      "type": "string",
-      "pattern": "^https://github\\.com/<owner>/<repo>(/(tree|blob)/<ref>)?$",
-      "description": "Public GitHub HTTPS repository URL"
-     },
-     "ref": {
-      "type": "string",
-      "description": "Optional git ref (branch, tag, or commit-ish)",
-      "maxLength": 200
-     }
-    }
+    "type": "object"
    },
    "responseSchema": {
-    "type": "object",
+    "properties": {
+     "orderId": {
+      "type": "string"
+     },
+     "payment": {
+      "type": "object"
+     },
+     "status": {
+      "enum": [
+       "pending",
+       "paid",
+       "expired"
+      ],
+      "type": "string"
+     },
+     "statusUrl": {
+      "type": "string"
+     },
+     "verification": {
+      "enum": [
+       "not_checked",
+       "pending",
+       "verified",
+       "unavailable",
+       "cooldown",
+       "expired"
+      ],
+      "type": "string"
+     }
+    },
+    "required": [
+     "orderId",
+     "status",
+     "payment",
+     "statusUrl"
+    ],
+    "type": "object"
+   },
+   "url": "https://codebyaurora.com/docrot-api/v1/checkout"
+  },
+  "checkoutStatus": {
+   "description": "Order status; while pending, verifies the payment on-chain via public Solana RPC (verification: pending | verified | unavailable | cooldown | expired).",
+   "method": "GET",
+   "path": "/v1/checkout/{orderId}",
+   "url": "https://codebyaurora.com/docrot-api/v1/checkout/{orderId}"
+  },
+  "health": {
+   "method": "GET",
+   "path": "/health",
+   "responseSchema": {
+    "properties": {
+     "status": {
+      "const": "ok",
+      "type": "string"
+     }
+    },
+    "required": [
+     "status"
+    ],
+    "type": "object"
+   }
+  },
+  "scan": {
+   "method": "POST",
+   "path": "/v1/scan",
+   "requestContentType": "application/json",
+   "requestSchema": {
+    "properties": {
+     "ref": {
+      "description": "Optional git ref (branch, tag, or commit-ish)",
+      "maxLength": 200,
+      "type": "string"
+     },
+     "repository": {
+      "description": "Public GitHub HTTPS repository URL",
+      "pattern": "^https://github\\.com/<owner>/<repo>(/(tree|blob)/<ref>)?$",
+      "type": "string"
+     }
+    },
+    "required": [
+     "repository"
+    ],
+    "type": "object"
+   },
+   "responseSchema": {
+    "properties": {
+     "broken": {
+      "items": {
+       "properties": {
+        "error": {
+         "type": [
+          "string",
+          "null"
+         ]
+        },
+        "line": {
+         "type": "integer"
+        },
+        "source": {
+         "type": "string"
+        },
+        "status": {
+         "type": [
+          "integer",
+          "null"
+         ]
+        },
+        "url": {
+         "type": "string"
+        }
+       },
+       "required": [
+        "url",
+        "status",
+        "source",
+        "line",
+        "error"
+       ],
+       "type": "object"
+      },
+      "type": "array"
+     },
+     "checkedUrls": {
+      "type": "integer"
+     },
+     "durationMs": {
+      "type": "integer"
+     },
+     "receipt": {
+      "type": "object"
+     },
+     "ref": {
+      "type": [
+       "string",
+       "null"
+      ]
+     },
+     "repository": {
+      "type": "string"
+     },
+     "requestId": {
+      "type": "string"
+     },
+     "scannedFiles": {
+      "type": "integer"
+     }
+    },
     "required": [
      "repository",
      "ref",
@@ -40,114 +198,11 @@
      "requestId",
      "receipt"
     ],
-    "properties": {
-     "repository": {
-      "type": "string"
-     },
-     "ref": {
-      "type": [
-       "string",
-       "null"
-      ]
-     },
-     "scannedFiles": {
-      "type": "integer"
-     },
-     "checkedUrls": {
-      "type": "integer"
-     },
-     "broken": {
-      "type": "array",
-      "items": {
-       "type": "object",
-       "required": [
-        "url",
-        "status",
-        "source",
-        "line",
-        "error"
-       ],
-       "properties": {
-        "url": {
-         "type": "string"
-        },
-        "status": {
-         "type": [
-          "integer",
-          "null"
-         ]
-        },
-        "source": {
-         "type": "string"
-        },
-        "line": {
-         "type": "integer"
-        },
-        "error": {
-         "type": [
-          "string",
-          "null"
-         ]
-        }
-       }
-      }
-     },
-     "durationMs": {
-      "type": "integer"
-     },
-     "requestId": {
-      "type": "string"
-     },
-     "receipt": {
-      "type": "object"
-     }
-    }
-   }
-  },
-  "health": {
-   "method": "GET",
-   "path": "/health",
-   "responseSchema": {
-    "type": "object",
-    "required": [
-     "status"
-    ],
-    "properties": {
-     "status": {
-      "type": "string",
-      "const": "ok"
-     }
-    }
-   }
+    "type": "object"
+   },
+   "url": "https://codebyaurora.com/docrot-api/v1/scan"
   }
  },
- "pricing": {
-  "amountUsd": 1.0,
-  "description": "US$1.00 per completed scan",
-  "currency": "SOL",
-  "referenceQuote": "0.0065",
-  "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
-  "billingModel": "manual-invoicing-pilot",
-  "pilot": "First external pilot scan is free.",
-  "terms": "Payable after result delivery. This version does NOT enforce or automate billing; an operator issues invoices manually. The reference SOL quote is informational; the USD price is the contractual price.",
-  "automatic": false
- },
- "limits": {
-  "maxRequestBytes": 65536,
-  "maxJobSeconds": 240,
-  "maxArchiveBytes": 52428800,
-  "maxFileBytes": 2097152,
-  "maxUrls": 1500,
-  "checkConcurrency": 8,
-  "checkTimeoutSeconds": 10,
-  "maxRedirects": 5
- },
- "supportedFormats": [
-  "markdown",
-  "mdx",
-  "restructuredtext",
-  "html"
- ],
  "fileExtensions": [
   ".md",
   ".markdown",
@@ -156,13 +211,33 @@
   ".html",
   ".htm"
  ],
- "capabilities": [
-  "public-github-repo-scan",
-  "markdown-link-extraction",
-  "mdx-link-extraction",
-  "rst-link-extraction",
-  "html-link-extraction",
-  "concurrent-head-get-liveness-check",
-  "ssrf-protected"
- ]
+ "limits": {
+  "checkConcurrency": 8,
+  "checkTimeoutSeconds": 10,
+  "maxArchiveBytes": 52428800,
+  "maxFileBytes": 2097152,
+  "maxJobSeconds": 240,
+  "maxRedirects": 5,
+  "maxRequestBytes": 65536,
+  "maxUrls": 1500
+ },
+ "name": "docrot-scan-api",
+ "pricing": {
+  "amountUsd": 1.0,
+  "automatic": false,
+  "billingModel": "manual-invoicing-pilot",
+  "currency": "SOL",
+  "description": "US$1.00 per completed scan",
+  "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
+  "pilot": "First external pilot scan is free.",
+  "referenceQuote": "0.0065",
+  "terms": "Payable after result delivery. This version does NOT enforce or automate billing; an operator issues invoices manually. The reference SOL quote is informational; the USD price is the contractual price."
+ },
+ "supportedFormats": [
+  "markdown",
+  "mdx",
+  "restructuredtext",
+  "html"
+ ],
+ "version": "1.7.0"
 }

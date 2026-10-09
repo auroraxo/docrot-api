@@ -170,6 +170,91 @@ is returned.
 
 ---
 
+## POST /v1/checkout
+
+Direct purchase path (added in **1.7.0**): a customer who already received a
+verified scan result can pay **US$1.00** without waiting for a manual
+invoice. Creates a payment order for one completed scan.
+
+### Request
+
+```json
+{
+  "repository": "https://github.com/<owner>/<repo>",
+  "ref": "main",
+  "requestId": "01K4ZQ8W9E0R6M3S5T7V9WXYZAB"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `repository` | yes | same validation rules as `/v1/scan` |
+| `ref` | no | same rules as `/v1/scan` |
+| `requestId` | no | the `receipt.requestId` of the delivered scan this order pays for (A-Z a-z 0-9 `_` `-`, max 64) |
+
+### Success response — `201`
+
+```json
+{
+  "orderId": "co_8f3a1c2d9e4b5a60",
+  "status": "pending",
+  "createdAt": "2026-10-09T11:20:00Z",
+  "expiresAt": "2026-10-10T11:20:00Z",
+  "verification": "not_checked",
+  "order": {"repository": "https://github.com/owner/repo", "ref": "main", "requestId": "..."},
+  "payment": {
+    "network": "solana", "asset": "SOL",
+    "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
+    "amount": "0.0065", "amountLamports": 6500000, "amountUsd": 1.0,
+    "reference": "<unique base58 reference>",
+    "solanaPayUri": "solana:CGVHjx...?amount=0.0065&reference=...&label=Docrot+Scan+API&message=...",
+    "terms": "..."
+  },
+  "statusUrl": "/v1/checkout/co_8f3a1c2d9e4b5a60",
+  "billingModel": "manual-invoicing-pilot"
+}
+```
+
+The **per-order `reference`** is what makes the payment attributable:
+wallets that honour the Solana Pay transfer standard include it in the
+transaction automatically. USD is the contractual price; `amount` is the
+reference SOL quote for this order.
+
+### Error responses
+
+Same envelope as `/v1/scan`: `400 invalid_json` / `missing_field` /
+`unknown_field` / `invalid_field`, `413 request_too_large`,
+`415 unsupported_media_type`, `422 unsupported_repository_*` /
+`invalid_repository` / `invalid_ref`, `404 not_found`, `405
+method_not_allowed` (`GET /v1/checkout`), `503 checkout_unavailable`
+(checkout not configured), `500 internal_error`.
+
+---
+
+## GET /v1/checkout/{orderId}
+
+Order status. While the order is pending and unexpired, each request
+checks the chain (rate-limited by `DOCROT_CHECKOUT_VERIFY_COOLDOWN_S`,
+default 10 s) for a confirmed incoming transfer of at least
+`payment.amountLamports` to `payment.payTo` carrying the order's
+`reference`.
+
+- `"verification": "pending"` — chain consulted, nothing qualifying yet.
+- `"verification": "verified"` — payment found; `status` becomes `paid`
+  and `transaction`/`paidAt` appear in the response.
+- `"verification": "unavailable"` — the public RPC could not be consulted
+  (timeout, rate limit, malformed response). The order stays `pending`;
+  **no claim is made either way**. Retry later.
+- `"verification": "cooldown"` — checked recently; cached state returned.
+- `status: "expired"` — past `expiresAt` without payment (still `paid` if
+  the money arrived earlier).
+
+Unknown `orderId` → `404 order_not_found`. Bad shape → `404 not_found`.
+Verification failure is **never** an HTTP error: `200` with an honest
+`verification` flag.
+
+---
+
 ## GET /health
 
 ```json
@@ -233,10 +318,17 @@ both return 200 with byte-identical content to
 | Max bytes read per response | `DOCROT_CHECK_MAX_READ_BYTES` | 65536 | hard cap, connection closed |
 | Fetch connect timeout | `DOCROT_FETCH_CONNECT_TIMEOUT_S` | 10 | `503` |
 | Fetch total timeout | `DOCROT_FETCH_TIMEOUT_S` | 60 | `503` |
+| Checkout order TTL | `DOCROT_CHECKOUT_TTL_S` | 86400 (24 h) | order expires, `status: "expired"` |
+| Checkout verify cooldown | `DOCROT_CHECKOUT_VERIFY_COOLDOWN_S` | 10 | cached state within cooldown |
+| Solana RPC timeout | `DOCROT_SOLANA_RPC_TIMEOUT_S` | 5 | `verification: "unavailable"` |
 
 Other env vars: `DOCROT_HOST`, `DOCROT_PORT`, `DOCROT_GITHUB_HOST`,
 `DOCROT_CODELOAD_HOST`, `DOCROT_ACCESS_LOG`, `DOCROT_JOB_LOG`,
-`DOCROT_CHECK_USER_AGENT`, `DOCROT_LOG_LEVEL`, `DOCROT_WELLKNOWN_PATH`.
+`DOCROT_CHECK_USER_AGENT`, `DOCROT_LOG_LEVEL`, `DOCROT_WELLKNOWN_PATH`,
+`DOCROT_CHECKOUT_STORE` (order file; defaults next to `DOCROT_JOB_LOG`),
+`DOCROT_SOLANA_RPC` (public JSON-RPC endpoint; no API key),
+`DOCROT_CHECKOUT_TTL_S`, `DOCROT_CHECKOUT_VERIFY_COOLDOWN_S`,
+`DOCROT_SOLANA_RPC_TIMEOUT_S`.
 All numeric env values are clamped to safe minimums/maximums at startup.
 
 ## Pricing
@@ -260,8 +352,13 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 3. **Manual invoice** — an operator reviews the job log and issues the
    invoice for that scan; payment is in **SOL** to the `Pay to` address
    above, **after** result delivery.
-4. **No automation** — no paywall, no API keys, no on-chain verification;
-   access grant and invoice are both manual during the pilot.
+4. **No automation** — no paywall, no API keys, no on-chain verification of
+   *scan access*; access grant and invoice are both manual during the pilot.
+5. **Self-serve instead of waiting** — `POST /v1/checkout` (1.7.0+) creates a
+   payment order with a per-order Solana Pay `reference`; the customer pays
+   the reference SOL quote to the `Pay to` address and
+   `GET /v1/checkout/{orderId}` flips `status` to `paid` once the public
+   chain confirms it. Same US$1.00 price, same address, no account needed.
 
 **Changed in 1.4.1:** `GET /` now returns an **absolute** `docs` URL —
 the previous relative pointer (`docs/API.md`) resolved against the service

@@ -8,6 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.7.0] — 2026-10-09
+
+### Added
+- **Direct purchase path (`POST /v1/checkout` + `GET /v1/checkout/{orderId}`)**:
+  a customer who already received a verified scan result can now pay the
+  US$1.00 without waiting for a manual invoice. Each order carries a unique
+  Solana Pay `reference` (random 32-byte base58 address) and an exact SOL
+  reference quote, so the payment is attributable on-chain — no accounts, no
+  API keys, no webhooks. Payment detection queries a public Solana mainnet
+  JSON-RPC endpoint (`DOCROT_SOLANA_RPC`, timeout `DOCROT_SOLANA_RPC_TIMEOUT_S`)
+  and is rate-limited per order by `DOCROT_CHECKOUT_VERIFY_COOLDOWN_S`
+  (default 10 s).
+- **Honest degradation**: when the RPC is unreachable or rate-limited the
+  order stays `pending` and the response carries
+  `"verification": "unavailable"` — never a fabricated paid/pending verdict.
+  Orders persist in `DOCROT_CHECKOUT_STORE` (defaults next to
+  `DOCROT_JOB_LOG`) with atomic replace; an unwritable store falls back to
+  memory and logs `checkout_store_error`.
+- Order TTL `DOCROT_CHECKOUT_TTL_S` (default 24 h); expired unpaid orders
+  report `status: "expired"`.
+- Suite 128 -> **154** (26 new checkout tests: store persistence/pruning,
+  order lifecycle, HTTP routes, RPC parsing/underpayment/transport failure).
+
 ## [1.6.0] — 2026-09-29
 
 ### Fixed

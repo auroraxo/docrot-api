@@ -51,6 +51,25 @@ you receive the result first.
    `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` **after** result delivery.
 4. **Nothing automatic.** No paywall, no API keys, no on-chain verification —
    the grant of access and the invoice are both manual during the pilot.
+5. **Or skip the wait (self-serve, 1.7.0+).** `POST /v1/checkout` creates a
+   payment order for the scan you already received — same US$1.00, same SOL
+   address — with a per-order Solana Pay `reference`:
+
+   ```bash
+   curl -sS -X POST https://codebyaurora.com/docrot-api/v1/checkout \
+     -H 'Content-Type: application/json' \
+     -d '{"repository":"https://github.com/<owner>/<repo>","requestId":"<receipt.requestId>"}'
+   # -> 201 {"orderId":"co_...","payment":{"solanaPayUri":"solana:...", ...}}
+
+   curl -sS https://codebyaurora.com/docrot-api/v1/checkout/co_...
+   # -> 200 {"status":"pending" | "paid" | "expired", "verification": ...}
+   ```
+
+   Paying through the `solanaPayUri` (wallets include the reference
+   automatically) flips `status` to `paid` once the public chain confirms it.
+   If the RPC cannot be consulted the response says
+   `"verification": "unavailable"` and the order stays `pending` — the
+   service never claims a payment it has not seen.
 
 ## Client notes
 

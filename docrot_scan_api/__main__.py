@@ -7,6 +7,7 @@ import json
 import os
 import sys
 
+from . import checkout as checkout_mod
 from .config import Config
 from .jsonl import make_access_logger, make_job_logger
 from .server import make_server
@@ -32,12 +33,20 @@ def main() -> int:
     job_logger = make_job_logger(config)
     service = ScanService(config, job_logger=job_logger)
     wellknown = load_wellknown()
+    checkout_store = checkout_mod.OrderStore(config.checkout_store_path,
+                                             logger=job_logger)
+    checkout_verifier = checkout_mod.RpcVerifier(
+        config.solana_rpc_url, timeout_s=config.solana_rpc_timeout_s)
 
     httpd = make_server(config, service, access_logger=access_logger,
-                        wellknown_body=wellknown)
+                        wellknown_body=wellknown,
+                        checkout_store=checkout_store,
+                        checkout_verifier=checkout_verifier)
     job_logger.log("server_started", service=SERVICE_NAME, version=VERSION,
                    host=config.host, port=config.port,
-                   billingModel=config.billing_model)
+                   billingModel=config.billing_model,
+                   checkoutStore=config.checkout_store_path,
+                   solanaRpc=config.solana_rpc_url)
     print(f"{SERVICE_NAME} {VERSION} listening on http://{config.host}:{config.port}",
           file=sys.stderr)
     try:

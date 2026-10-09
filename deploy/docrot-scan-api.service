@@ -45,6 +45,9 @@ Environment=DOCROT_MAX_URLS=1500
 Environment=DOCROT_CHECK_CONCURRENCY=8
 Environment=DOCROT_ACCESS_LOG=/var/lib/docrot/access.jsonl
 Environment=DOCROT_JOB_LOG=/var/lib/docrot/job.jsonl
+# Self-serve checkout order store (1.7.0+): same writable StateDirectory as
+# the JSONL logs above, so persistence survives restarts.
+Environment=DOCROT_CHECKOUT_STORE=/var/lib/docrot/checkout-orders.json
 
 # Writable state directory for the JSONL logs above. StateDirectory is
 # created chowned to User=Group= before the hardening sandbox applies, so

@@ -7,6 +7,8 @@ Routes:
     GET  /                              -> human+machine service description
     GET  /.well-known/agent-service.json -> machine-readable descriptor from disk
     POST /v1/scan                       -> run a scan job
+    POST /v1/checkout                   -> create a direct-purchase order
+    GET  /v1/checkout/{orderId}         -> order status (+ on-chain verify)
 """
 
 import json
@@ -15,12 +17,14 @@ import socketserver
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from . import checkout as checkout_mod
 from . import github as github_mod
 from .requestid import new_request_id
 from .service import ScanService, JobError
 from .version import SERVICE_NAME, VERSION
 
 _MAX_BODY_BYTES_CAP = 1024 * 1024
+_CHECKOUT_PATH = re.compile(r"^/v1/checkout/([A-Za-z0-9_]{10,64})$")
 
 
 class _BodyTooLarge(Exception):
@@ -44,6 +48,8 @@ class DocrotHandler(BaseHTTPRequestHandler):
     service = None
     access_logger = None
     wellknown_body = None
+    checkout_store = None
+    checkout_verifier = None
 
     # ------------------------------------------------------------------ util
 
@@ -103,6 +109,13 @@ class DocrotHandler(BaseHTTPRequestHandler):
                                             "use POST for /v1/scan"),
                                 request_id)
                 status = 405
+            elif path == "/v1/checkout":
+                self._send_json(405, _error("method_not_allowed",
+                                            "use POST for /v1/checkout"),
+                                request_id)
+                status = 405
+            elif path.startswith("/v1/checkout/"):
+                status = self._handle_checkout_get(path, request_id)
             else:
                 self._send_json(404, _error("not_found",
                                             f"no route for {path}"),
@@ -120,12 +133,14 @@ class DocrotHandler(BaseHTTPRequestHandler):
         request_id = new_request_id()
         status = 500
         try:
-            if path != "/v1/scan":
+            if path == "/v1/scan":
+                status = self._handle_scan(request_id)
+            elif path == "/v1/checkout":
+                status = self._handle_checkout_post(request_id)
+            else:
                 self._send_json(404, _error("not_found",
                                             f"no route for {path}"), request_id)
                 status = 404
-            else:
-                status = self._handle_scan(request_id)
         except (BrokenPipeError, ConnectionResetError):
             status = 499
         except Exception as exc:  # last-resort honest 500
@@ -222,6 +237,128 @@ class DocrotHandler(BaseHTTPRequestHandler):
         self._send_json(200, result, request_id)
         return 200
 
+    # ---------------------------------------------------------- /v1/checkout
+
+    def _checkout_ready(self, request_id):
+        if self.checkout_store is None or self.checkout_verifier is None:
+            self._send_json(503, _error("checkout_unavailable",
+                                        "checkout is not configured"), request_id)
+            return False
+        return True
+
+    def _handle_checkout_post(self, request_id: str) -> int:
+        if not self._checkout_ready(request_id):
+            return 503
+        content_type = (self.headers.get("Content-Type") or ";").split(";")[0].strip().lower()
+        if content_type and content_type != "application/json":
+            self._send_json(415, _error("unsupported_media_type",
+                                        "Content-Type must be application/json"),
+                            request_id)
+            return 415
+        try:
+            body = self._read_body()
+        except _BodyTooLarge:
+            self.close_connection = True
+            self._send_json(413, _error("request_too_large",
+                                        f"request body exceeds {self.config.max_request_bytes} bytes"),
+                            request_id)
+            return 413
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            self._send_json(400, _error("invalid_json",
+                                        f"request body is not valid JSON: {exc}"),
+                            request_id)
+            return 400
+        if not isinstance(payload, dict):
+            self._send_json(400, _error("invalid_json",
+                                        "request body must be a JSON object"),
+                            request_id)
+            return 400
+
+        allowed = {"repository", "ref", "requestId"}
+        unknown = set(payload) - allowed
+        if unknown:
+            self._send_json(400, _error("unknown_field",
+                                        f"unknown fields: {sorted(unknown)}"),
+                            request_id)
+            return 400
+        if "repository" not in payload:
+            self._send_json(400, _error("missing_field",
+                                        "missing required field: repository"),
+                            request_id)
+            return 400
+        if "ref" in payload and payload["ref"] is not None and \
+                not isinstance(payload["ref"], str):
+            self._send_json(400, _error("invalid_field",
+                                        "ref must be a string or null"),
+                            request_id)
+            return 400
+        receipt_id = payload.get("requestId")
+        if receipt_id is not None:
+            if not isinstance(receipt_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", receipt_id):
+                self._send_json(400, _error("invalid_field",
+                                            "requestId must be a short "
+                                            "identifier (A-Z a-z 0-9 _ -, "
+                                            "max 64 chars)"),
+                                request_id)
+                return 400
+
+        try:
+            parsed = github_mod.normalize_repository_url(
+                payload["repository"], github_host=self.config.github_host)
+            if payload.get("ref"):
+                github_mod.validate_ref(payload["ref"])
+                parsed["ref"] = payload["ref"]
+        except github_mod.RepositoryValidationError as exc:
+            self._send_json(422, _error(exc.code, exc.message), request_id)
+            return 422
+
+        order = checkout_mod.build_order(self.config, parsed["url"],
+                                         parsed["ref"], receipt_id)
+        self.checkout_store.create(order)
+        doc = checkout_mod.order_payload(order, self.config,
+                                         verification="not_checked")
+        doc["repository"] = parsed["url"]
+        self._send_json(201, doc, request_id)
+        return 201
+
+    def _handle_checkout_get(self, path: str, request_id: str) -> int:
+        if not self._checkout_ready(request_id):
+            return 503
+        match = _CHECKOUT_PATH.fullmatch(path)
+        if not match:
+            self._send_json(404, _error("not_found",
+                                        f"no route for {path}"), request_id)
+            return 404
+        order = self.checkout_store.get(match.group(1))
+        if order is None:
+            self._send_json(404, _error("order_not_found",
+                                        "no checkout order with this orderId"),
+                            request_id)
+            return 404
+
+        now = time.time()
+        if order.get("status") != "paid" and order.get("expiresAt", 0) < now:
+            verification = "skipped"
+        else:
+            verification = checkout_mod.check_payment(
+                order, self.checkout_store, self.checkout_verifier,
+                now=now,
+                cooldown_s=self.config.checkout_verify_cooldown_s)
+            order = self.checkout_store.get(order["orderId"]) or order
+
+        flag = {"verified": "verified", "pending": "pending",
+                "unavailable": "unavailable",
+                "skipped": ("verified" if order.get("status") == "paid"
+                            else "expired" if order.get("expiresAt", 0) < now
+                            else "cooldown")}[verification]
+        doc = checkout_mod.order_payload(order, self.config, verification=flag)
+        if order.get("expiresAt", 0) < now and order.get("status") != "paid":
+            doc["status"] = "expired"
+        self._send_json(200, doc, request_id)
+        return 200
+
     # ------------------------------------------------------------------ docs
 
     def _root_document(self) -> dict:
@@ -236,6 +373,8 @@ class DocrotHandler(BaseHTTPRequestHandler):
             "endpoints": {
                 "health": "GET /health",
                 "scan": "POST /v1/scan",
+                "checkout": "POST /v1/checkout",
+                "checkoutStatus": "GET /v1/checkout/{orderId}",
                 "descriptor": "GET /.well-known/agent-service.json",
             },
             "scanRequest": {
@@ -284,11 +423,13 @@ class _Server(ThreadingHTTPServer):
     allow_reuse_address = True
 
     def __init__(self, address, handler, config, service, access_logger,
-                 wellknown_body):
+                 wellknown_body, checkout_store=None, checkout_verifier=None):
         self.config = config
         self.service = service
         self.access_logger = access_logger
         self.wellknown_body = wellknown_body
+        self.checkout_store = checkout_store
+        self.checkout_verifier = checkout_verifier
         timeout = getattr(config, "request_timeout_s", 30)
         self.timeout = timeout
         super().__init__(address, handler)
@@ -297,6 +438,8 @@ class _Server(ThreadingHTTPServer):
         self.RequestHandlerClass.service = service
         self.RequestHandlerClass.access_logger = access_logger
         self.RequestHandlerClass.wellknown_body = wellknown_body
+        self.RequestHandlerClass.checkout_store = checkout_store
+        self.RequestHandlerClass.checkout_verifier = checkout_verifier
 
     def handle_error(self, request, client_address):
         # quiet, structured: noisy tracebacks from clients that hang up
@@ -309,10 +452,12 @@ class _Server(ThreadingHTTPServer):
 
 
 def make_server(config, service: ScanService, access_logger=None,
-                wellknown_body=None) -> _Server:
+                wellknown_body=None, checkout_store=None,
+                checkout_verifier=None) -> _Server:
     """Create (not start) the HTTP server bound to config.host:config.port."""
     if access_logger is None:
         from .jsonl import make_access_logger
         access_logger = make_access_logger(config)
     return _Server((config.host, config.port), DocrotHandler, config, service,
-                   access_logger, wellknown_body)
+                   access_logger, wellknown_body, checkout_store,
+                   checkout_verifier)
