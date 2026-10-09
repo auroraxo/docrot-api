@@ -1,6 +1,6 @@
 # Docrot Scan API — API Reference
 
-Version: 1.6.0
+Version: 1.11.0
 Base URL: `https://codebyaurora.com/docrot-api/` (production; the app itself
 binds `http://127.0.0.1:8087` and HTTPS/PATH prefix terminates at the proxy —
 see `deploy/nginx.conf`)
@@ -271,6 +271,31 @@ reference, Solana Pay deep link, 5 s auto-refresh while pending, paid and
 expired states) rendered from the same payload — the two views cannot
 disagree. `Accept: application/json`, `*/*`, or no `Accept` keeps the JSON
 contract exactly as documented above.
+
+---
+
+## GET /v1/scan-form
+
+Self-contained browser scan form (**1.11.0+**). Returns
+`text/html; charset=utf-8` for every `Accept` value (this route is HTML
+by definition, like a page, not an API resource).
+
+The page lets a person paste a public GitHub repository URL and run a
+scan without reading this document:
+
+1. The form `POST`s `/{scan}` (same origin) and renders the receipt.
+2. If a `receipt` came back, a **Pay US$1.00** button `POST`s
+   `/v1/checkout` with `requestId` + `repository`.
+3. The result links to `GET /v1/checkout/{orderId}` — the 1.10.0 HTML
+   payment page — plus the raw `solanaPayUri` deep link for wallets.
+
+Self-contained by construction: inline CSS, inline JS, no external
+assets, no third-party scripts, no accounts, no API keys. It is the
+same contract as the endpoints above — only the presentation is new.
+
+```bash
+open https://codebyaurora.com/docrot-api/v1/scan-form   # or curl -sS ...
+```
 
 ---
 

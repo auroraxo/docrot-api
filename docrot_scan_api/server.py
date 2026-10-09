@@ -6,6 +6,7 @@ Routes:
     GET  /health                        -> liveness
     GET  /                              -> human+machine service description
     GET  /.well-known/agent-service.json -> machine-readable descriptor from disk
+    GET  /v1/scan-form                  -> self-contained browser scan form (HTML)
     POST /v1/scan                       -> run a scan job
     POST /v1/checkout                   -> create a direct-purchase order
     GET  /v1/checkout/{orderId}         -> order status (+ on-chain verify)
@@ -25,6 +26,209 @@ from .version import SERVICE_NAME, VERSION
 
 _MAX_BODY_BYTES_CAP = 1024 * 1024
 _CHECKOUT_PATH = re.compile(r"^/v1/checkout/([A-Za-z0-9_]{10,64})$")
+
+
+def _scan_form_html(service: str, version: str) -> str:
+    """Self-contained browser scan form (1.11.0+).
+
+    A non-developer who lands on ``GET /v1/scan-form`` (and any landing
+    page that points at it) can paste a public GitHub URL and run a
+    scan without reading the API docs. The same form already lives on
+    ``https://codebyaurora.com/``; this route is the canonical machine
+    endpoint, so a buyer who discovered the service from the docs
+    descriptor can use it directly.
+
+    The page is stdlib-only: no third-party JS, no external assets, no
+    QR codes. A successful run surfaces the receipt with a one-click
+    "Open payment page" that links to ``/v1/checkout/{orderId}`` —
+    the human payment page (1.10.0+) renders the amount, address,
+    reference, a deep-link to any Solana Pay wallet, and auto-refreshes
+    while the order is pending.
+    """
+    from html import escape as esc
+    title = f"{esc(service)} — scan a public GitHub repo"
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<style>
+:root {{ color-scheme: light dark; }}
+body {{ font: 15px/1.55 system-ui, sans-serif; margin: 0; padding: 2rem 1rem;
+       max-width: 40rem; margin-inline: auto; }}
+h1 {{ font-size: 1.4rem; margin: 0 0 .25rem; }}
+p.lede {{ margin: 0 0 1.25rem; opacity: .8; }}
+form {{ display: flex; gap: .5rem; flex-wrap: wrap; margin-bottom: 1rem; }}
+input {{ flex: 1; min-width: 16rem; font: 14px ui-monospace, monospace;
+         padding: .55rem .65rem; border: 1px solid #888; border-radius: 6px;
+         background: transparent; color: inherit; }}
+button {{ padding: .55rem 1rem; border: 0; border-radius: 6px;
+          background: #2563eb; color: #fff; font-weight: 600; cursor: pointer; }}
+button[disabled] {{ opacity: .6; cursor: progress; }}
+.panel {{ border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+          border-radius: 8px; padding: .75rem 1rem; margin: 1rem 0; }}
+.row {{ display: flex; gap: .75rem; justify-content: space-between;
+        align-items: baseline; padding: .3rem 0; flex-wrap: wrap; }}
+.row span {{ opacity: .7; }}
+code {{ font: 13px/1.4 ui-monospace, monospace; word-break: break-all;
+        text-align: right; }}
+.broken {{ color: #b91c1c; }}
+.broken li {{ margin: .15rem 0; font-family: ui-monospace, monospace;
+              font-size: 13px; word-break: break-all; }}
+.ok {{ color: #15803d; }}
+.muted {{ opacity: .75; }}
+.actions {{ display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }}
+.actions a {{ display: inline-block; padding: .45rem .85rem; border-radius: 6px;
+              background: #2563eb; color: #fff; text-decoration: none;
+              font-size: 13px; font-weight: 600; }}
+.actions a.alt {{ background: #475569; }}
+.status {{ font-weight: 600; margin: .25rem 0 1rem; }}
+.status.idle {{ opacity: .7; }}
+.status.error {{ color: #b91c1c; }}
+.status.scanning {{ color: #b45309; }}
+.status.complete {{ color: #15803d; }}
+footer {{ margin-top: 1.5rem; font-size: 13px; opacity: .7; }}
+</style>
+</head>
+<body>
+<h1>{esc(service)}</h1>
+<p class="lede">Paste any public GitHub repository URL. Result first; if a
+<code>receipt</code> comes back the scan is billable at US$1.00 in SOL,
+payable through the on-chain self-serve checkout. First external pilot scan
+is free. Service version <code>{esc(version)}</code>.</p>
+<form id="f" onsubmit="return runScan(event)">
+  <input id="repo" type="text" required
+         placeholder="https://github.com/&lt;owner&gt;/&lt;repo&gt;"
+         value="https://github.com/auroraxo/aurora-node-auditor">
+  <input id="ref" type="text" placeholder="ref" value="main" style="max-width: 8rem;">
+  <button id="go" type="submit">Run free scan</button>
+</form>
+<p class="status idle" id="state">idle</p>
+<div id="out"></div>
+<footer>Machine-readable: <code>GET /.well-known/agent-service.json</code> ·
+Full reference: <a href="https://github.com/auroraxo/docrot-api/blob/main/docs/API.md">docs/API.md</a>
+· Hosted example: <a href="https://codebyaurora.com/#scan-live">codebyaurora.com</a></footer>
+<script>
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+async function runScan(ev) {{
+  ev.preventDefault();
+  const repo = document.getElementById('repo').value.trim();
+  const ref = document.getElementById('ref').value.trim();
+  const btn = document.getElementById('go');
+  const state = document.getElementById('state');
+  const out = document.getElementById('out');
+  btn.disabled = true;
+  state.className = 'status scanning';
+  state.textContent = 'scanning…';
+  out.innerHTML = '';
+  try {{
+    const res = await fetch('/v1/scan', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{repository: repo, ref: ref || 'main'}})
+    }});
+    const data = await res.json();
+    if (data.error) {{
+      state.className = 'status error';
+      state.textContent = 'error: ' + data.error.code;
+      out.innerHTML = '<p class="muted">' + esc(data.error.message) + '</p>';
+      return false;
+    }}
+    const broken = data.broken || [];
+    state.className = 'status complete';
+    state.textContent = 'complete — ' + data.checkedUrls + ' URLs, '
+      + broken.length + ' broken (' + data.durationMs + 'ms)';
+    let html = '<div class="panel"><div class="row"><span>Repository</span>'
+      + '<code>' + esc(data.repository) + (data.ref ? '@' + esc(data.ref) : '')
+      + '</code></div>'
+      + '<div class="row"><span>Files scanned</span><code>' + data.scannedFiles
+      + '</code></div>'
+      + '<div class="row"><span>Receipt</span><code>' + esc(data.requestId)
+      + '</code></div></div>';
+    if (broken.length) {{
+      html += '<p>Broken links / dead images:</p><ul class="broken">';
+      for (const b of broken) {{
+        html += '<li>' + esc(b.url) + ' <span class="muted">('
+          + esc(b.source) + ':' + b.line + ' · '
+          + esc(b.status || b.error || '?') + ')</span></li>';
+      }}
+      html += '</ul>';
+    }} else {{
+      html += '<p class="ok">✓ No broken links or dead images found.</p>';
+    }}
+    if (data.receipt && data.receipt.billing) {{
+      const b = data.receipt.billing;
+      const pay = b.selfServe || {{}};
+      html += '<div class="panel"><div class="row"><span>Billable</span>'
+        + '<code>US$' + Number(b.amountDueUsd).toFixed(2) + ' ('
+        + esc(b.amountDue) + ' SOL)</code></div>'
+        + '<div class="row"><span>Pilot</span><code>'
+        + (b.pilotFree ? 'first pilot scan free' : 'standard rate') + '</code></div>'
+        + '<div class="row"><span>Self-serve</span><code>'
+        + (pay.checkoutEndpoint ? esc(pay.checkoutEndpoint) : 'manual invoice')
+        + '</code></div></div>';
+      html += '<div class="actions">'
+        + '<button id="pay" type="button">Pay US$1.00 for this scan</button>'
+        + '<a class="alt" target="_blank" rel="noopener" '
+        + 'href="https://github.com/auroraxo/docrot-api/blob/main/docs/API.md#post-v1checkout">API reference</a>'
+        + '</div><div id="pay-out" style="margin-top:8px;"></div>';
+    }}
+    out.innerHTML = html;
+    const payBtn = document.getElementById('pay');
+    if (payBtn) payBtn.addEventListener('click', () => openCheckout(
+      data.receipt.requestId, data.repository));
+  }} catch (e) {{
+    state.className = 'status error';
+    state.textContent = 'request failed';
+    out.innerHTML = '<p class="muted">' + esc(e.message) + '</p>';
+  }} finally {{
+    btn.disabled = false;
+  }}
+  return false;
+}}
+async function openCheckout(requestId, repository) {{
+  const out = document.getElementById('pay-out');
+  out.innerHTML = '<span class="muted">opening checkout…</span>';
+  try {{
+    const res = await fetch('/v1/checkout', {{
+      method: 'POST',
+      headers: {{'Content-Type': 'application/json'}},
+      body: JSON.stringify({{requestId: requestId, repository: repository}})
+    }});
+    const data = await res.json();
+    if (data.error) {{
+      out.innerHTML = '<span class="broken">' + esc(data.error.message)
+        + '</span>';
+      return;
+    }}
+    const orderId = data.orderId;
+    const payPage = '/v1/checkout/' + orderId;
+    out.innerHTML = '<div class="panel"><div class="row"><span>Order</span>'
+      + '<code>' + esc(orderId) + '</code></div>'
+      + '<div class="row"><span>Amount</span><code>'
+      + esc(data.payment.amount) + ' SOL (US$'
+      + Number(data.payment.amountUsd).toFixed(2) + ')</code></div>'
+      + '<div class="row"><span>Address</span><code>'
+      + esc(data.payment.payTo) + '</code></div>'
+      + '<div class="row"><span>Reference</span><code>'
+      + esc(data.payment.reference) + '</code></div></div>'
+      + '<div class="actions">'
+      + '<a target="_blank" rel="noopener" href="' + payPage + '">Open payment page</a>'
+      + (data.payment.solanaPayUri
+        ? '<a class="alt" target="_blank" rel="noopener" href="'
+          + esc(data.payment.solanaPayUri) + '">Open in wallet (Solana Pay)</a>'
+        : '')
+      + '</div><p class="muted">The payment page auto-refreshes while the order is pending and flips to <code>paid</code> once the Solana chain confirms it. A server-side watcher re-checks every 60 s, so a payment is never claimed before it is seen on-chain.</p>';
+  }} catch (e) {{
+    out.innerHTML = '<span class="broken">' + esc(e.message) + '</span>';
+  }}
+}}
+</script>
+</body>
+</html>
+"""
 
 
 class _BodyTooLarge(Exception):
@@ -129,6 +333,13 @@ class DocrotHandler(BaseHTTPRequestHandler):
                                                 "descriptor not deployed"),
                                     request_id)
                     status = 404
+            elif path == "/v1/scan-form":
+                # Self-contained browser scan form (1.11.0+). Stdlib-only,
+                # no scripts that require a build, no external assets. The
+                # one POST it makes is /v1/scan, on the same origin.
+                self._send_html(200, _scan_form_html(SERVICE_NAME, VERSION),
+                                request_id)
+                status = 200
             elif path == "/v1/scan":
                 self._send_json(405, _error("method_not_allowed",
                                             "use POST for /v1/scan"),
@@ -402,6 +613,7 @@ class DocrotHandler(BaseHTTPRequestHandler):
             "endpoints": {
                 "health": "GET /health",
                 "scan": "POST /v1/scan",
+                "scanForm": "GET /v1/scan-form",
                 "checkout": "POST /v1/checkout",
                 "checkoutStatus": "GET /v1/checkout/{orderId}",
                 "descriptor": "GET /.well-known/agent-service.json",

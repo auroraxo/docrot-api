@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.11.0] — 2026-10-09
+
+### Added
+- **Self-serve browser scan form**: `GET /v1/scan-form` serves a
+  self-contained HTML page (inline CSS + inline JS, no external assets,
+  no third-party scripts) where a non-developer pastes a public GitHub
+  URL, runs `POST /v1/scan` on the same origin, sees the receipt, and
+  opens the self-serve payment page with one click. Closes the last
+  funnel gap for a buyer who arrived via a link rather than the docs.
+- The machine-readable descriptor (`/.well-known/agent-service.json`)
+  and the root document now list `scanForm` alongside the other
+  endpoints.
+
 ## [1.10.0] — 2026-10-09
 
 ### Added

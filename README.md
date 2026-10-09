@@ -76,6 +76,15 @@ you receive the result first.
    pending. API clients sending `Accept: application/json` (or `*/*`)
    keep the JSON contract unchanged.
 
+   **No curl? Use the browser form (1.11.0+).** `GET /v1/scan-form`
+   serves a self-contained page where you paste a repository URL, run
+   the scan, see the receipt, and open the payment page in one click —
+   same endpoints underneath, no account, no external assets:
+
+   ```bash
+   open https://codebyaurora.com/docrot-api/v1/scan-form
+   ```
+
 **What is and is not automated.** There is never a paywall or API key:
 scan *access* is granted before payment, always. What the self-serve path
 automates is payment *detection* — the order status flips to `paid` when

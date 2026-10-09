@@ -1,243 +1,248 @@
 {
- "baseUrl": "https://codebyaurora.com/docrot-api/",
- "capabilities": [
-  "public-github-repo-scan",
-  "markdown-link-extraction",
-  "mdx-link-extraction",
-  "rst-link-extraction",
-  "html-link-extraction",
-  "concurrent-head-get-liveness-check",
-  "ssrf-protected"
- ],
- "description": "Paid link-rot scanning API for public GitHub repositories. Scans Markdown/MDX/reStructuredText/HTML files and reports broken remote http(s) links and images.",
- "docs": "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md",
- "endpoints": {
-  "checkout": {
-   "description": "Create a self-serve payment order (US$1 in SOL) for an already delivered scan.",
-   "method": "POST",
-   "path": "/v1/checkout",
-   "requestContentType": "application/json",
-   "requestSchema": {
-    "additionalProperties": false,
-    "properties": {
-     "ref": {
-      "description": "Optional git ref",
-      "maxLength": 200,
-      "type": "string"
-     },
-     "repository": {
-      "description": "Public GitHub HTTPS repository URL",
-      "type": "string"
-     },
-     "requestId": {
-      "description": "receipt.requestId this order pays for",
-      "maxLength": 64,
-      "type": "string"
-     }
-    },
-    "required": [
-     "repository"
-    ],
-    "type": "object"
-   },
-   "responseSchema": {
-    "properties": {
-     "orderId": {
-      "type": "string"
-     },
-     "payment": {
-      "type": "object"
-     },
-     "status": {
-      "enum": [
-       "pending",
-       "paid",
-       "expired"
-      ],
-      "type": "string"
-     },
-     "statusUrl": {
-      "type": "string"
-     },
-     "verification": {
-      "enum": [
-       "not_checked",
-       "pending",
-       "verified",
-       "unavailable",
-       "cooldown",
-       "expired"
-      ],
-      "type": "string"
-     }
-    },
-    "required": [
-     "orderId",
-     "status",
-     "payment",
-     "statusUrl"
-    ],
-    "type": "object"
-   },
-   "url": "https://codebyaurora.com/docrot-api/v1/checkout"
-  },
-  "checkoutStatus": {
-   "description": "Order status; while pending, verifies the payment on-chain via public Solana RPC (verification: pending | verified | unavailable | cooldown | expired).",
-   "method": "GET",
-   "path": "/v1/checkout/{orderId}",
-   "url": "https://codebyaurora.com/docrot-api/v1/checkout/{orderId}"
-  },
-  "health": {
-   "method": "GET",
-   "path": "/health",
-   "responseSchema": {
-    "properties": {
-     "status": {
-      "const": "ok",
-      "type": "string"
-     }
-    },
-    "required": [
-     "status"
-    ],
-    "type": "object"
-   }
-  },
-  "scan": {
-   "method": "POST",
-   "path": "/v1/scan",
-   "requestContentType": "application/json",
-   "requestSchema": {
-    "properties": {
-     "ref": {
-      "description": "Optional git ref (branch, tag, or commit-ish)",
-      "maxLength": 200,
-      "type": "string"
-     },
-     "repository": {
-      "description": "Public GitHub HTTPS repository URL",
-      "pattern": "^https://github\\.com/<owner>/<repo>(/(tree|blob)/<ref>)?$",
-      "type": "string"
-     }
-    },
-    "required": [
-     "repository"
-    ],
-    "type": "object"
-   },
-   "responseSchema": {
-    "properties": {
-     "broken": {
-      "items": {
-       "properties": {
-        "error": {
-         "type": [
-          "string",
-          "null"
-         ]
+  "baseUrl": "https://codebyaurora.com/docrot-api/",
+  "capabilities": [
+    "public-github-repo-scan",
+    "markdown-link-extraction",
+    "mdx-link-extraction",
+    "rst-link-extraction",
+    "html-link-extraction",
+    "concurrent-head-get-liveness-check",
+    "ssrf-protected"
+  ],
+  "description": "Paid link-rot scanning API for public GitHub repositories. Scans Markdown/MDX/reStructuredText/HTML files and reports broken remote http(s) links and images.",
+  "docs": "https://github.com/auroraxo/docrot-api/blob/main/docs/API.md",
+  "endpoints": {
+    "checkout": {
+      "description": "Create a self-serve payment order (US$1 in SOL) for an already delivered scan.",
+      "method": "POST",
+      "path": "/v1/checkout",
+      "requestContentType": "application/json",
+      "requestSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "ref": {
+            "description": "Optional git ref",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "repository": {
+            "description": "Public GitHub HTTPS repository URL",
+            "type": "string"
+          },
+          "requestId": {
+            "description": "receipt.requestId this order pays for",
+            "maxLength": 64,
+            "type": "string"
+          }
         },
-        "line": {
-         "type": "integer"
-        },
-        "source": {
-         "type": "string"
-        },
-        "status": {
-         "type": [
-          "integer",
-          "null"
-         ]
-        },
-        "url": {
-         "type": "string"
-        }
-       },
-       "required": [
-        "url",
-        "status",
-        "source",
-        "line",
-        "error"
-       ],
-       "type": "object"
+        "required": [
+          "repository"
+        ],
+        "type": "object"
       },
-      "type": "array"
-     },
-     "checkedUrls": {
-      "type": "integer"
-     },
-     "durationMs": {
-      "type": "integer"
-     },
-     "receipt": {
-      "type": "object"
-     },
-     "ref": {
-      "type": [
-       "string",
-       "null"
-      ]
-     },
-     "repository": {
-      "type": "string"
-     },
-     "requestId": {
-      "type": "string"
-     },
-     "scannedFiles": {
-      "type": "integer"
-     }
+      "responseSchema": {
+        "properties": {
+          "orderId": {
+            "type": "string"
+          },
+          "payment": {
+            "type": "object"
+          },
+          "status": {
+            "enum": [
+              "pending",
+              "paid",
+              "expired"
+            ],
+            "type": "string"
+          },
+          "statusUrl": {
+            "type": "string"
+          },
+          "verification": {
+            "enum": [
+              "not_checked",
+              "pending",
+              "verified",
+              "unavailable",
+              "cooldown",
+              "expired"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "orderId",
+          "status",
+          "payment",
+          "statusUrl"
+        ],
+        "type": "object"
+      },
+      "url": "https://codebyaurora.com/docrot-api/v1/checkout"
     },
-    "required": [
-     "repository",
-     "ref",
-     "scannedFiles",
-     "checkedUrls",
-     "broken",
-     "durationMs",
-     "requestId",
-     "receipt"
-    ],
-    "type": "object"
-   },
-   "url": "https://codebyaurora.com/docrot-api/v1/scan"
-  }
- },
- "fileExtensions": [
-  ".md",
-  ".markdown",
-  ".mdx",
-  ".rst",
-  ".html",
-  ".htm"
- ],
- "limits": {
-  "checkConcurrency": 8,
-  "checkTimeoutSeconds": 10,
-  "maxArchiveBytes": 52428800,
-  "maxFileBytes": 2097152,
-  "maxJobSeconds": 240,
-  "maxRedirects": 5,
-  "maxRequestBytes": 65536,
-  "maxUrls": 1500
- },
- "name": "docrot-scan-api",
- "pricing": {
-  "amountUsd": 1.0,
-  "automatic": false,
-  "billingModel": "manual-invoicing-pilot",
-  "currency": "SOL",
-  "description": "US$1.00 per completed scan",
-  "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
-  "pilot": "First external pilot scan is free.",
-  "referenceQuote": "0.0065",
-  "terms": "Payable after result delivery. Self-serve via POST /v1/checkout (per-order Solana Pay reference, on-chain verification); otherwise an operator issues invoices manually. The reference SOL quote is informational; the USD price is the contractual price."
- },
- "supportedFormats": [
-  "markdown",
-  "mdx",
-  "restructuredtext",
-  "html"
- ],
- "version": "1.10.0"
+    "checkoutStatus": {
+      "description": "Order status; while pending, verifies the payment on-chain via public Solana RPC (verification: pending | verified | unavailable | cooldown | expired).",
+      "method": "GET",
+      "path": "/v1/checkout/{orderId}",
+      "url": "https://codebyaurora.com/docrot-api/v1/checkout/{orderId}"
+    },
+    "health": {
+      "method": "GET",
+      "path": "/health",
+      "responseSchema": {
+        "properties": {
+          "status": {
+            "const": "ok",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "type": "object"
+      }
+    },
+    "scan": {
+      "method": "POST",
+      "path": "/v1/scan",
+      "requestContentType": "application/json",
+      "requestSchema": {
+        "properties": {
+          "ref": {
+            "description": "Optional git ref (branch, tag, or commit-ish)",
+            "maxLength": 200,
+            "type": "string"
+          },
+          "repository": {
+            "description": "Public GitHub HTTPS repository URL",
+            "pattern": "^https://github\\.com/<owner>/<repo>(/(tree|blob)/<ref>)?$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "repository"
+        ],
+        "type": "object"
+      },
+      "responseSchema": {
+        "properties": {
+          "broken": {
+            "items": {
+              "properties": {
+                "error": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "line": {
+                  "type": "integer"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ]
+                },
+                "url": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "url",
+                "status",
+                "source",
+                "line",
+                "error"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "checkedUrls": {
+            "type": "integer"
+          },
+          "durationMs": {
+            "type": "integer"
+          },
+          "receipt": {
+            "type": "object"
+          },
+          "ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "repository": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "scannedFiles": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "repository",
+          "ref",
+          "scannedFiles",
+          "checkedUrls",
+          "broken",
+          "durationMs",
+          "requestId",
+          "receipt"
+        ],
+        "type": "object"
+      },
+      "url": "https://codebyaurora.com/docrot-api/v1/scan"
+    },
+    "scanForm": {
+      "method": "GET",
+      "path": "/v1/scan-form",
+      "description": "Self-contained browser scan form (HTML): paste a public GitHub URL, see the receipt, open the self-serve payment page. Same origin POST /v1/scan; no external assets."
+    }
+  },
+  "fileExtensions": [
+    ".md",
+    ".markdown",
+    ".mdx",
+    ".rst",
+    ".html",
+    ".htm"
+  ],
+  "limits": {
+    "checkConcurrency": 8,
+    "checkTimeoutSeconds": 10,
+    "maxArchiveBytes": 52428800,
+    "maxFileBytes": 2097152,
+    "maxJobSeconds": 240,
+    "maxRedirects": 5,
+    "maxRequestBytes": 65536,
+    "maxUrls": 1500
+  },
+  "name": "docrot-scan-api",
+  "pricing": {
+    "amountUsd": 1.0,
+    "automatic": false,
+    "billingModel": "manual-invoicing-pilot",
+    "currency": "SOL",
+    "description": "US$1.00 per completed scan",
+    "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
+    "pilot": "First external pilot scan is free.",
+    "referenceQuote": "0.0065",
+    "terms": "Payable after result delivery. Self-serve via POST /v1/checkout (per-order Solana Pay reference, on-chain verification); otherwise an operator issues invoices manually. The reference SOL quote is informational; the USD price is the contractual price."
+  },
+  "supportedFormats": [
+    "markdown",
+    "mdx",
+    "restructuredtext",
+    "html"
+  ],
+  "version": "1.11.0"
 }
