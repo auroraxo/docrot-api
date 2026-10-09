@@ -189,9 +189,17 @@ class ScanService:
                 "amountDue": cfg.sol_reference_quote,
                 "payTo": cfg.sol_pay_to,
                 "terms": ("Payable after result delivery. First external pilot "
-                          "scan is free. No automatic billing in this version; "
-                          "an operator issues the invoice manually."),
+                          "scan is free. Self-serve: POST /v1/checkout opens "
+                          "a per-order payment (1.8.0+); otherwise an operator "
+                          "issues the invoice manually."),
                 "pilotFree": False,
+                "selfServe": {
+                    "checkoutEndpoint": "/v1/checkout",
+                    "method": "POST",
+                    "description": ("Create a payment order for this receipt "
+                                   "(same US$1.00, same SOL address); status "
+                                   "via GET /v1/checkout/{orderId}."),
+                },
             },
         }
 

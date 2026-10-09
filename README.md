@@ -51,7 +51,8 @@ you receive the result first.
    `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` **after** result delivery.
 4. **Nothing automatic.** No paywall, no API keys, no on-chain verification —
    the grant of access and the invoice are both manual during the pilot.
-5. **Or skip the wait (self-serve, 1.7.0+).** `POST /v1/checkout` creates a
+5. **Or skip the wait (self-serve, 1.7.0+).** Every scan receipt now carries a
+   `billing.selfServe` block pointing at `POST /v1/checkout`, which creates a
    payment order for the scan you already received — same US$1.00, same SOL
    address — with a per-order Solana Pay `reference`:
 

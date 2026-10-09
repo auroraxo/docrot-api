@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.8.0] — 2026-10-09
+
+### Added
+- **Self-serve block in every scan receipt**: `receipt.billing.selfServe`
+  (`checkoutEndpoint: /v1/checkout`, `method: POST`, `description`) points the
+  customer at the direct purchase path from the scan result itself, so the
+  funnel no longer depends on the caller having read the README.
+
+### Changed
+- `receipt.billing.terms` and the `agent-service.json` pricing terms now state
+  the self-serve option alongside manual invoicing instead of "No automatic
+  billing in this version".
+
+---
+
 ## [1.7.0] — 2026-10-09
 
 ### Added

@@ -231,7 +231,7 @@
   "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
   "pilot": "First external pilot scan is free.",
   "referenceQuote": "0.0065",
-  "terms": "Payable after result delivery. This version does NOT enforce or automate billing; an operator issues invoices manually. The reference SOL quote is informational; the USD price is the contractual price."
+  "terms": "Payable after result delivery. Self-serve via POST /v1/checkout (per-order Solana Pay reference, on-chain verification); otherwise an operator issues invoices manually. The reference SOL quote is informational; the USD price is the contractual price."
  },
  "supportedFormats": [
   "markdown",
@@ -239,5 +239,5 @@
   "restructuredtext",
   "html"
  ],
- "version": "1.7.0"
+ "version": "1.8.0"
 }

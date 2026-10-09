@@ -75,8 +75,13 @@ Content-Type: application/json
       "amountDueUsd": 1.0,
       "amountDue": "0.0065",
       "payTo": "CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn",
-      "terms": "Payable after result delivery. First external pilot scan is free. No automatic billing in this version; an operator issues the invoice manually.",
-      "pilotFree": false
+      "terms": "Payable after result delivery. First external pilot scan is free. Self-serve: POST /v1/checkout opens a per-order payment (1.8.0+); otherwise an operator issues the invoice manually.",
+      "pilotFree": false,
+      "selfServe": {
+        "checkoutEndpoint": "/v1/checkout",
+        "method": "POST",
+        "description": "Create a payment order for this receipt (same US$1.00, same SOL address); status via GET /v1/checkout/{orderId}."
+      }
     }
   }
 }
