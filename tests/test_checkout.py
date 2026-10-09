@@ -208,23 +208,29 @@ class CheckoutHttpTests(unittest.TestCase):
         cls.httpd.shutdown()
         cls.httpd.server_close()
 
-    def _request(self, method, path, body=None):
+    def _request(self, method, path, body=None, headers=None):
+        status, _ctype, data = self._raw(method, path, body, headers)
+        try:
+            doc = json.loads(data)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            doc = None
+        return status, doc
+
+    def _raw(self, method, path, body=None, headers=None):
+        """Request returning (status, content_type, decoded_body_text)."""
         import http.client
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
-        headers = {}
+        headers = dict(headers or {})
         payload = None
         if body is not None:
             payload = json.dumps(body).encode("utf-8")
-            headers["Content-Type"] = "application/json"
+            headers.setdefault("Content-Type", "application/json")
         conn.request(method, path, body=payload, headers=headers)
         resp = conn.getresponse()
         data = resp.read()
+        ctype = resp.getheader("Content-Type", "")
         conn.close()
-        try:
-            doc = json.loads(data.decode("utf-8"))
-        except (json.JSONDecodeError, UnicodeDecodeError):
-            doc = None
-        return resp.status, doc
+        return resp.status, ctype, data.decode("utf-8", "replace")
 
     def test_01_create_order(self):
         status, doc = self._request(
@@ -245,6 +251,58 @@ class CheckoutHttpTests(unittest.TestCase):
         self.assertEqual(doc2["orderId"], doc["orderId"])
         self.assertEqual(doc2["status"], "pending")
         self.assertEqual(doc2["verification"], "pending")
+
+    def test_11_html_payment_page_for_browsers(self):
+        status, doc = self._request(
+            "POST", "/v1/checkout",
+            {"repository": "https://github.com/owner/repo",
+             "requestId": "REQ1"})
+        self.assertEqual(status, 201)
+        page_url = doc["statusUrl"]
+
+        # Browser-style Accept -> self-contained HTML payment page
+        status, ctype, body = self._raw(
+            "GET", page_url, headers={
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"})
+        self.assertEqual(status, 200)
+        self.assertIn("text/html", ctype)
+        # the wallet deep link is HTML-escaped (& -> &amp;) like everything else
+        from html import escape as _esc
+        for needle in (doc["orderId"], doc["payment"]["payTo"],
+                       doc["payment"]["reference"], "0.0065",
+                       _esc(doc["payment"]["solanaPayUri"]),
+                       "Waiting for payment"):
+            self.assertIn(needle, body)
+        self.assertIn('http-equiv="refresh"', body)  # auto-refresh while pending
+        # no scripts, no external assets — self-contained by construction
+        self.assertNotIn("<script", body)
+
+        # API clients keep JSON: explicit application/json wins over html
+        status, ctype, body = self._raw(
+            "GET", page_url, headers={"Accept": "application/json, text/html"})
+        self.assertIn("application/json", ctype)
+        parsed = json.loads(body)
+        self.assertEqual(parsed["orderId"], doc["orderId"])
+
+        # default (no Accept) also stays JSON — existing contract unchanged
+        status, ctype, body = self._raw("GET", page_url)
+        self.assertIn("application/json", ctype)
+        self.assertEqual(json.loads(body)["orderId"], doc["orderId"])
+
+    def test_12_html_page_shows_paid_state(self):
+        status, doc = self._request(
+            "POST", "/v1/checkout",
+            {"repository": "https://github.com/owner/repo"})
+        order_id = doc["orderId"]
+        self.__class__.rpc.result = "PaidSignatureHtml"
+        status, _ctype, body = self._raw(
+            "GET", f"/v1/checkout/{order_id}",
+            headers={"Accept": "text/html"})
+        self.assertEqual(status, 200)
+        self.assertIn("Payment confirmed", body)
+        self.assertIn("PaidSignatureHtml", body)
+        self.assertNotIn('http-equiv="refresh"', body)  # stops on paid
+        self.__class__.rpc.result = None
 
     def test_02_create_missing_repository(self):
         status, doc = self._request("POST", "/v1/checkout", {})

@@ -46,12 +46,10 @@ you receive the result first.
 2. **Result before money.** A `200` response containing a `receipt` object is
    a completed, billable scan (**US$1.00**). Rejected requests, errors and
    timeouts are never billed.
-3. **Invoice follows manually.** An operator reviews the job log and issues
-   the invoice for the scan above; you pay in **SOL** to
+3. **Invoice follows manually, or skip the wait.** An operator reviews the
+   job log and issues the invoice for the scan above; you pay in **SOL** to
    `CGVHjxwMadDvLB8qGYYyD2TEwB4E8wimg68SUy1vvbzn` **after** result delivery.
-4. **Nothing automatic.** No paywall, no API keys, no on-chain verification —
-   the grant of access and the invoice are both manual during the pilot.
-5. **Or skip the wait (self-serve, 1.7.0+).** Every scan receipt now carries a
+   Alternatively (self-serve, 1.7.0+) every scan receipt carries a
    `billing.selfServe` block pointing at `POST /v1/checkout`, which creates a
    payment order for the scan you already received — same US$1.00, same SOL
    address — with a per-order Solana Pay `reference`:
@@ -71,6 +69,19 @@ you receive the result first.
    If the RPC cannot be consulted the response says
    `"verification": "unavailable"` and the order stays `pending` — the
    service never claims a payment it has not seen.
+
+   Opening `GET /v1/checkout/{orderId}` in a browser (i.e. with
+   `Accept: text/html`) shows the same order as a small payment page —
+   amount, address, reference, wallet deep link, auto-refresh while
+   pending. API clients sending `Accept: application/json` (or `*/*`)
+   keep the JSON contract unchanged.
+
+**What is and is not automated.** There is never a paywall or API key:
+scan *access* is granted before payment, always. What the self-serve path
+automates is payment *detection* — the order status flips to `paid` when
+the public Solana chain confirms the transfer (by the buyer's poll or the
+server-side watcher). Invoicing can still be done manually by an operator;
+both paths use the same US$1.00 price and the same SOL address.
 
 ## Client notes
 

@@ -328,6 +328,127 @@ def order_payload(order, config, verification):
     return payload
 
 
+def order_page_html(payload):
+    """Human payment page for ``GET /v1/checkout/{orderId}`` (1.10.0+).
+
+    Served only when the client asks for ``text/html``; API clients keep
+    the JSON payload untouched. Built from the very same ``order_payload()``
+    dict the JSON route serves, so the two views can never disagree about
+    status, amount, address, or reference.
+
+    Self-contained by construction: inline CSS, no scripts, no external
+    requests. While the order is pending the page reloads every 5 s (a
+    browser GET *is* the documented status poll) and stops once the order
+    is paid or expired.
+    """
+    from html import escape as esc
+
+    status = payload.get("status", "pending")
+    verification = payload.get("verification", "")
+    payment = payload.get("payment", {})
+    order = payload.get("order", {})
+    is_paid = status == "paid"
+
+    if is_paid:
+        headline = "Payment confirmed"
+        note = ("The payment was seen on the Solana chain. "
+                "Thank you — nothing further is required.")
+    elif status == "expired":
+        headline = "Order expired"
+        note = ("This order expired before the payment arrived. Create a new "
+                "order with POST /v1/checkout to pay for the same scan.")
+    elif verification == "unavailable":
+        headline = "Waiting for payment"
+        note = ("The public Solana RPC could not be consulted right now, so "
+                "the payment status is unverified. The order stays pending "
+                "and is re-checked automatically — a payment is never "
+                "claimed before it is seen on-chain.")
+    else:
+        headline = "Waiting for payment"
+        note = ("Send the amount below to the address below with this "
+                "reference attached (Solana Pay wallets attach it "
+                "automatically). This page reloads every 5 seconds and "
+                "flips to Paid as soon as the chain confirms it.")
+
+    refresh = ('<meta http-equiv="refresh" content="5">'
+               if status == "pending" else "")
+    wallet = ""
+    if not is_paid and status != "expired":
+        wallet = (f'<a class="wallet" href="{esc(payment.get("solanaPayUri", ""))}">'
+                  "Open in wallet (Solana Pay)</a>")
+
+    paid_block = ""
+    if is_paid:
+        via = payload.get("paidVia")
+        paid_block = (
+            '<div class="paid">'
+            f'<div><span>Transaction</span><code>{esc(payload.get("transaction", ""))}</code></div>'
+            f'<div><span>Confirmed at</span>{esc(payload.get("paidAt", ""))}</div>'
+            + (f'<div><span>Detected by</span>{esc(via)}</div>' if via else "")
+            + '</div>')
+
+    rows = [
+        ("Order", payload.get("orderId", "")),
+        ("Repository", order.get("repository") or "—"),
+        ("Receipt", order.get("requestId") or "—"),
+        ("Amount", f'US${float(payment.get("amountUsd", 1.0)):.2f} '
+                   f'(reference quote {payment.get("amount", "")} SOL)'),
+        ("Pay to", payment.get("payTo", "")),
+        ("Reference", payment.get("reference", "")),
+        ("Expires", payload.get("expiresAt", "")),
+    ]
+    rows_html = "".join(
+        f'<div class="row"><span>{esc(label)}</span><code>{esc(str(value))}</code></div>'
+        for label, value in rows)
+
+    return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+{refresh}<title>Docrot Scan API — payment {esc(payload.get('orderId', ''))}</title>
+<style>
+:root {{ color-scheme: light dark; }}
+body {{ font: 15px/1.55 system-ui, sans-serif; margin: 0; padding: 2rem 1rem;
+       max-width: 40rem; margin-inline: auto; }}
+h1 {{ font-size: 1.3rem; margin: 0 0 .25rem; }}
+.status {{ font-weight: 600; margin: 0 0 1rem; }}
+.status.pending {{ color: #b45309; }} .status.paid {{ color: #15803d; }}
+.status.expired {{ color: #b91c1c; }}
+note, .note {{ display: block; margin-bottom: 1.25rem; }}
+.panel {{ border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+          border-radius: 8px; padding: .75rem 1rem; margin-bottom: 1rem; }}
+.row {{ display: flex; gap: .75rem; justify-content: space-between;
+        align-items: baseline; padding: .3rem 0; flex-wrap: wrap; }}
+.row span {{ opacity: .7; }}
+code {{ font: 13px/1.4 ui-monospace, monospace; word-break: break-all;
+        text-align: right; }}
+.wallet {{ display: inline-block; padding: .55rem 1rem; border-radius: 6px;
+           background: #2563eb; color: #fff; text-decoration: none;
+           font-weight: 600; margin-bottom: 1rem; }}
+.paid {{ border-left: 3px solid #15803d; padding-left: .75rem; }}
+.paid div {{ display: flex; gap: .75rem; justify-content: space-between;
+             flex-wrap: wrap; }}
+.paid span {{ opacity: .7; }}
+footer {{ margin-top: 1.5rem; font-size: 13px; opacity: .75; }}
+</style>
+</head>
+<body>
+<h1>Docrot Scan API</h1>
+<p class="status {esc(status)}">{esc(headline)} — {esc(status)}
+   (verification: {esc(verification)})</p>
+<p class="note">{esc(note)}</p>
+{wallet}
+<div class="panel">{rows_html}</div>
+{paid_block}
+<footer>Payment terms: {esc(payment.get('terms', ''))}<br>
+Machine-readable: request this URL with <code>Accept: application/json</code>.<br>
+Docs: <a href="https://github.com/auroraxo/docrot-api/blob/main/docs/API.md">docs/API.md</a></footer>
+</body>
+</html>
+"""
+
+
 def check_payment(order, store, verifier, now=None, cooldown_s=10,
                   source="status-poll"):
     """Advance one pending order against the chain; returns verification flag.

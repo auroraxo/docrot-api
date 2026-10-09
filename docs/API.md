@@ -265,6 +265,13 @@ Unknown `orderId` → `404 order_not_found`. Bad shape → `404 not_found`.
 Verification failure is **never** an HTTP error: `200` with an honest
 `verification` flag.
 
+**Content negotiation (1.10.0+).** Send `Accept: text/html` and the same
+URL returns a self-contained human payment page (amount, address,
+reference, Solana Pay deep link, 5 s auto-refresh while pending, paid and
+expired states) rendered from the same payload — the two views cannot
+disagree. `Accept: application/json`, `*/*`, or no `Accept` keeps the JSON
+contract exactly as documented above.
+
 ---
 
 ## GET /health
@@ -363,16 +370,21 @@ All numeric env values are clamped to safe minimums/maximums at startup.
 2. **Result before money** — a `200` response with a `receipt` object is a
    completed, billable scan at **US$1.00**. Any `error.code` (4xx/5xx JSON
    contract) is never billed.
-3. **Manual invoice** — an operator reviews the job log and issues the
-   invoice for that scan; payment is in **SOL** to the `Pay to` address
-   above, **after** result delivery.
-4. **No automation** — no paywall, no API keys, no on-chain verification of
-   *scan access*; access grant and invoice are both manual during the pilot.
+3. **Manual invoice or self-serve** — an operator can review the job log and
+   issue the invoice for that scan; payment is in **SOL** to the `Pay to`
+   address above, **after** result delivery. Alternatively (1.7.0+)
+   `POST /v1/checkout` opens the same US$1.00 as a self-serve order with a
+   per-order Solana Pay `reference`.
+4. **What is never automated** — no paywall, no API keys: *scan access* is
+   granted before payment, always; access grant is never gated on chain.
 5. **Self-serve instead of waiting** — `POST /v1/checkout` (1.7.0+) creates a
    payment order with a per-order Solana Pay `reference`; the customer pays
    the reference SOL quote to the `Pay to` address and
    `GET /v1/checkout/{orderId}` flips `status` to `paid` once the public
-   chain confirms it. Same US$1.00 price, same address, no account needed.
+   chain confirms it (by the buyer's poll or the server-side watcher,
+   1.9.0+). Same US$1.00 price, same address, no account needed. Opening
+   that URL in a browser (`Accept: text/html`, 1.10.0+) shows a payment
+   page with the same data.
 
 **Changed in 1.4.1:** `GET /` now returns an **absolute** `docs` URL —
 the previous relative pointer (`docs/API.md`) resolved against the service
@@ -409,10 +421,13 @@ false-positive class the open-source scanner fixed in v1.2.0; found here
 by cross-checking the paid path against scanner v5, fixed with 5
 regression tests).
 
-**Important:** this version does **not** enforce or automate billing. There
-is no paywall, no API keys, no on-chain verification. An operator reviews
-job logs and invoices customers manually. The `receipt.billing` block exists
-so agents can display/record the amount owed transparently. `amountDue` is a
+**Billing, precisely:** there is never a paywall and never an API key —
+scan *access* is granted before payment. Since 1.7.0 the self-serve
+checkout (`POST /v1/checkout`) detects payment on-chain (public Solana
+RPC) and flips the order to `paid`; since 1.9.0 a server-side watcher does
+this even if the buyer never polls. Invoicing can still be done manually
+by an operator — the `receipt.billing` block exists so agents can
+display/record the amount owed transparently either way. `amountDue` is a
 reference SOL quote captured at deploy time; the USD price is contractual.
 
 ## Security model

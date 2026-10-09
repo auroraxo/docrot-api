@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.10.0] — 2026-10-09
+
+### Added
+- **Human payment page**: `GET /v1/checkout/{orderId}` now serves a small
+  self-contained HTML page when the client sends `Accept: text/html` —
+  amount, address, reference, Solana Pay deep link, auto-refresh while
+  pending, paid/expired states. API clients that send `Accept:
+  application/json` (or `*/*`, or no `Accept`) get the JSON payload
+  unchanged; the page is rendered from the same `order_payload()` dict, so
+  the two views can never disagree.
+
+### Changed
+- **Billing story synced with reality in README + docs/API.md**: the
+  "invoice follows manually / nothing automatic" wording predates the
+  self-serve checkout (1.7.0+) and read as a contradiction. Both documents
+  now describe the actual funnel: scan first, receipt carries
+  `billing.selfServe`, `POST /v1/checkout` creates the order, on-chain
+  verification detects payment; manual invoicing remains the fallback.
+  The `"Important: this version does not enforce or automate billing"`
+  note now states precisely what is and is not automated (scan access is
+  never gated; payment *detection* is on-chain; invoicing can still be
+  manual).
+
+---
+
 ## [1.9.0] — 2026-10-09
 
 ### Added

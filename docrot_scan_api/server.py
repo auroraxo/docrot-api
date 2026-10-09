@@ -66,6 +66,31 @@ class DocrotHandler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError):
             pass
 
+    def _send_html(self, status: int, html: str, request_id=None):
+        body = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("X-Request-Id", request_id or "n/a")
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        try:
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+
+    def _wants_html(self) -> bool:
+        """Content negotiation for order status: HTML only if asked for.
+
+        Browsers send ``Accept: text/html,...``; API clients send
+        ``application/json`` or ``*/*``. The default (no/any Accept) stays
+        JSON so every existing client contract holds unchanged.
+        """
+        accept = (self.headers.get("Accept") or "").lower()
+        if "application/json" in accept:
+            return False
+        return "text/html" in accept
+
     def _access(self, status: int, duration_ms: int, request_id=None, **extra):
         if self.access_logger:
             self.access_logger.access(
@@ -357,7 +382,10 @@ class DocrotHandler(BaseHTTPRequestHandler):
         doc = checkout_mod.order_payload(order, self.config, verification=flag)
         if order.get("expiresAt", 0) < now and order.get("status") != "paid":
             doc["status"] = "expired"
-        self._send_json(200, doc, request_id)
+        if self._wants_html():
+            self._send_html(200, checkout_mod.order_page_html(doc), request_id)
+        else:
+            self._send_json(200, doc, request_id)
         return 200
 
     # ------------------------------------------------------------------ docs
