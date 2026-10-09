@@ -203,7 +203,20 @@ class OrderStore:
                 order["lastCheckedAt"] = checked_at
                 self._save()
 
-    def mark_paid(self, order_id, signature, paid_at):
+    def pending(self, now=None):
+        """Copies of every live order still waiting for payment.
+
+        Paid orders are revenue records (never re-checked); expired orders
+        are dead (never re-checked). Used by the server-side watcher so a
+        payment is found even when the buyer never opens the status URL.
+        """
+        now = time.time() if now is None else now
+        with self._lock:
+            return [dict(v) for v in self._orders.values()
+                    if v.get("status") != "paid"
+                    and v.get("expiresAt", 0) >= now]
+
+    def mark_paid(self, order_id, signature, paid_at, source=None):
         with self._lock:
             order = self._orders.get(order_id)
             if order is None:
@@ -212,9 +225,12 @@ class OrderStore:
                 order["status"] = "paid"
                 order["transaction"] = signature
                 order["paidAt"] = paid_at
+                if source:
+                    order["paidVia"] = source
                 self._save()
                 self._log("checkout_paid", orderId=order_id,
-                          transaction=signature)
+                          transaction=signature,
+                          **({"via": source} if source else {}))
             return dict(order)
 
     def _prune_locked(self):
@@ -303,12 +319,17 @@ def order_payload(order, config, verification):
     if order.get("transaction"):
         payload["transaction"] = order["transaction"]
         payload["paidAt"] = iso(order["paidAt"])
+        if order.get("paidVia"):
+            # how the payment was found: the buyer's status poll or the
+            # server-side watcher (1.9.0+)
+            payload["paidVia"] = order["paidVia"]
     if config.billing_model:
         payload["billingModel"] = config.billing_model
     return payload
 
 
-def check_payment(order, store, verifier, now=None, cooldown_s=10):
+def check_payment(order, store, verifier, now=None, cooldown_s=10,
+                  source="status-poll"):
     """Advance one pending order against the chain; returns verification flag.
 
     Returns one of:
@@ -316,6 +337,10 @@ def check_payment(order, store, verifier, now=None, cooldown_s=10):
       - "pending"           chain consulted, no qualifying payment yet
       - "unavailable"       chain could not be consulted
       - "skipped"           not applicable (already paid / expired / cooldown)
+
+    ``source`` = "status-poll" if the buyer's GET asked for it,
+    ``"server-watch"`` if the background watcher found it — recorded on the
+    order as ``paidVia`` so revenue records say who detected the payment.
     """
     now = time.time() if now is None else now
     if order.get("status") == "paid":
@@ -333,6 +358,64 @@ def check_payment(order, store, verifier, now=None, cooldown_s=10):
                   error=str(exc))
         return "unavailable"
     if signature:
-        store.mark_paid(order["orderId"], signature, time.time())
+        store.mark_paid(order["orderId"], signature, time.time(),
+                        source=source)
         return "verified"
     return "pending"
+
+
+class PaymentWatcher:
+    """Server-side sweep: verify pending orders on a timer.
+
+    Status polls are the buyer's side of the funnel — but a payer may send
+    the SOL and never open ``GET /v1/checkout/{orderId}`` again, which left
+    the order ``pending`` forever and the revenue undetected. This watcher
+    runs in a daemon thread and re-checks every live pending order once per
+    interval, sharing the per-order cooldown with status polls so both paths
+    draw from the same RPC budget.
+
+    Honest by construction: an RPC outage keeps orders ``pending`` and logs
+    ``checkout_verify_error``; the sweep never marks a payment it has not
+    seen on-chain, and it dies loudly (``checkout_watch_error``) rather than
+    silently.
+    """
+
+    def __init__(self, store, verifier, config, logger=None):
+        self.store = store
+        self.verifier = verifier
+        self.config = config
+        self.logger = logger
+        self._stop = threading.Event()
+
+    def tick(self, now=None):
+        """One verification pass; returns {orderId: flag} for notable ones."""
+        now = time.time() if now is None else now
+        results = {}
+        for order in self.store.pending(now=now):
+            flag = check_payment(order, self.store, self.verifier, now=now,
+                                 cooldown_s=self.config.checkout_verify_cooldown_s,
+                                 source="server-watch")
+            if flag in ("verified", "unavailable"):
+                results[order["orderId"]] = flag
+        return results
+
+    def run(self):
+        interval = getattr(self.config, "checkout_watch_interval_s", 60)
+        if interval <= 0:
+            return
+        while not self._stop.is_set():
+            try:
+                self.tick()
+            except Exception as exc:  # the sweep must survive anything
+                if self.logger:
+                    self.logger.log("checkout_watch_error", error=str(exc))
+            self._stop.wait(interval)
+
+    def start(self):
+        thread = threading.Thread(target=self.run, name="checkout-watch",
+                                  daemon=True)
+        thread.start()
+        return thread
+
+    def stop(self):
+        self._stop.set()

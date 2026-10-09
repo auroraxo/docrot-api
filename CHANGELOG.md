@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.9.0] — 2026-10-09
+
+### Added
+- **Server-side payment watcher**: a daemon-thread sweep re-checks every
+  live pending order once per `DOCROT_CHECKOUT_WATCH_INTERVAL_S` (default
+  60 s, `0` disables). A payer who sends the SOL and never opens
+  `GET /v1/checkout/{orderId}` again is now still detected — before this,
+  such an order stayed `pending` forever and the revenue went unnoticed.
+  The watcher shares the per-order cooldown with status polls (one RPC
+  budget) and degrades honestly: RPC outages keep orders `pending` and log
+  `checkout_verify_error`; a sweep crash logs `checkout_watch_error` instead
+  of dying silently. Startup logs `checkout_watch_started`.
+- **`paidVia` on paid orders** (`status-poll` or `server-watch`): revenue
+  records now say how the payment was found; also exposed in the order
+  payload. `checkout_paid` journal events carry the same `via` field.
+- `OrderStore.pending()` — snapshot of live, unpaid, unexpired orders.
+
+---
+
 ## [1.8.0] — 2026-10-09
 
 ### Added

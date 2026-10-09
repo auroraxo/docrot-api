@@ -345,7 +345,8 @@ class DocrotHandler(BaseHTTPRequestHandler):
             verification = checkout_mod.check_payment(
                 order, self.checkout_store, self.checkout_verifier,
                 now=now,
-                cooldown_s=self.config.checkout_verify_cooldown_s)
+                cooldown_s=self.config.checkout_verify_cooldown_s,
+                source="status-poll")
             order = self.checkout_store.get(order["orderId"]) or order
 
         flag = {"verified": "verified", "pending": "pending",

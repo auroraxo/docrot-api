@@ -244,6 +244,13 @@ default 10 s) for a confirmed incoming transfer of at least
 `payment.amountLamports` to `payment.payTo` carrying the order's
 `reference`.
 
+Since 1.9.0 the server also checks on its own: a background watcher
+(`DOCROT_CHECKOUT_WATCH_INTERVAL_S`, default 60 s) sweeps every live
+pending order, so a payment is recorded even if the buyer never polls
+this endpoint again. Both paths share the same per-order cooldown. Paid
+orders carry `paidVia` — `"status-poll"` (found via this endpoint) or
+`"server-watch"` (found by the sweep).
+
 - `"verification": "pending"` — chain consulted, nothing qualifying yet.
 - `"verification": "verified"` — payment found; `status` becomes `paid`
   and `transaction`/`paidAt` appear in the response.
@@ -325,6 +332,7 @@ both return 200 with byte-identical content to
 | Fetch total timeout | `DOCROT_FETCH_TIMEOUT_S` | 60 | `503` |
 | Checkout order TTL | `DOCROT_CHECKOUT_TTL_S` | 86400 (24 h) | order expires, `status: "expired"` |
 | Checkout verify cooldown | `DOCROT_CHECKOUT_VERIFY_COOLDOWN_S` | 10 | cached state within cooldown |
+| Checkout watch interval | `DOCROT_CHECKOUT_WATCH_INTERVAL_S` | 60 (0 = off) | background sweep period, seconds |
 | Solana RPC timeout | `DOCROT_SOLANA_RPC_TIMEOUT_S` | 5 | `verification: "unavailable"` |
 
 Other env vars: `DOCROT_HOST`, `DOCROT_PORT`, `DOCROT_GITHUB_HOST`,
@@ -333,6 +341,7 @@ Other env vars: `DOCROT_HOST`, `DOCROT_PORT`, `DOCROT_GITHUB_HOST`,
 `DOCROT_CHECKOUT_STORE` (order file; defaults next to `DOCROT_JOB_LOG`),
 `DOCROT_SOLANA_RPC` (public JSON-RPC endpoint; no API key),
 `DOCROT_CHECKOUT_TTL_S`, `DOCROT_CHECKOUT_VERIFY_COOLDOWN_S`,
+`DOCROT_CHECKOUT_WATCH_INTERVAL_S`,
 `DOCROT_SOLANA_RPC_TIMEOUT_S`.
 All numeric env values are clamped to safe minimums/maximums at startup.
 

@@ -315,6 +315,150 @@ class CheckoutHttpTests(unittest.TestCase):
         self.__class__.rpc.raise_error = False
 
 
+class PaymentWatcherTests(unittest.TestCase):
+    """Server-side sweep: revenue is found even if the buyer never polls."""
+
+    def setUp(self):
+        self.tmp = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
+        self.tmp.close()
+        os.unlink(self.tmp.name)
+        self.config = make_config(DOCROT_CHECKOUT_STORE=self.tmp.name,
+                                  DOCROT_CHECKOUT_WATCH_INTERVAL_S="30")
+        self.stream = io.StringIO()
+        self.logger = JsonlLogger("job", stream=self.stream)
+        self.store = checkout_mod.OrderStore(self.tmp.name, logger=self.logger)
+
+    def tearDown(self):
+        if os.path.exists(self.tmp.name):
+            os.unlink(self.tmp.name)
+
+    def _order(self, **overrides):
+        order = checkout_mod.build_order(self.config,
+                                         "https://github.com/owner/repo",
+                                         "main", "REQ1")
+        order.update(overrides)
+        self.store.create(order)
+        return order
+
+    def test_config_interval_defaults_to_60_and_clamps(self):
+        cfg = make_config()
+        self.assertEqual(cfg.checkout_watch_interval_s, 60)
+        self.assertEqual(
+            make_config(DOCROT_CHECKOUT_WATCH_INTERVAL_S="0")
+            .checkout_watch_interval_s, 0)
+        self.assertEqual(
+            make_config(DOCROT_CHECKOUT_WATCH_INTERVAL_S="99999999")
+            .checkout_watch_interval_s, 86400)
+        # garbage env falls back to the default, like every other knob
+        self.assertEqual(
+            make_config(DOCROT_CHECKOUT_WATCH_INTERVAL_S="soon")
+            .checkout_watch_interval_s, 60)
+
+    def test_tick_finds_payment_without_client_poll(self):
+        order = self._order()
+        rpc = FakeRpc(result="SigFromWatcher")
+        watcher = checkout_mod.PaymentWatcher(self.store, rpc, self.config,
+                                              logger=self.logger)
+        results = watcher.tick()
+        self.assertEqual(results, {order["orderId"]: "verified"})
+        got = self.store.get(order["orderId"])
+        self.assertEqual(got["status"], "paid")
+        self.assertEqual(got["transaction"], "SigFromWatcher")
+        self.assertEqual(got["paidVia"], "server-watch")
+        self.assertIn("checkout_paid", self.stream.getvalue())
+        self.assertIn('"via":"server-watch"', self.stream.getvalue()
+                      .replace(" ", ""))
+
+    def test_tick_skips_paid_and_expired_orders(self):
+        paid = self._order()
+        self.store.mark_paid(paid["orderId"], "SigOld", time.time(),
+                             source="status-poll")
+        self._order(expiresAt=time.time() - 1)
+        rpc = FakeRpc(result="should-not-be-called")
+        watcher = checkout_mod.PaymentWatcher(self.store, rpc, self.config)
+        self.assertEqual(watcher.tick(), {})
+        self.assertEqual(rpc.calls, [])
+
+    def test_tick_respects_shared_cooldown_with_status_polls(self):
+        order = self._order()
+        rpc = FakeRpc(result=None)
+        now = time.time()
+        # a buyer status poll checked the chain a moment ago
+        checkout_mod.check_payment(self.store.get(order["orderId"]),
+                                   self.store, rpc, now=now,
+                                   cooldown_s=self.config
+                                   .checkout_verify_cooldown_s)
+        watcher = checkout_mod.PaymentWatcher(self.store, rpc, self.config)
+        watcher.tick(now=now)  # inside cooldown -> no second RPC draw
+        self.assertEqual(len(rpc.calls), 1)
+
+    def test_rpc_outage_keeps_order_pending_and_logs_honestly(self):
+        order = self._order()
+        rpc = FakeRpc(raise_error=True)
+        watcher = checkout_mod.PaymentWatcher(self.store, rpc, self.config,
+                                              logger=self.logger)
+        results = watcher.tick()
+        self.assertEqual(results, {order["orderId"]: "unavailable"})
+        self.assertEqual(self.store.get(order["orderId"])["status"], "pending")
+        self.assertIn("checkout_verify_error", self.stream.getvalue())
+
+    def test_run_is_inert_when_interval_is_zero(self):
+        self.config.checkout_watch_interval_s = 0
+        rpc = FakeRpc(result="should-not-be-called")
+        self._order()
+        watcher = checkout_mod.PaymentWatcher(self.store, rpc, self.config,
+                                              logger=self.logger)
+        watcher.run()  # returns immediately, no loop, no RPC
+        self.assertEqual(rpc.calls, [])
+
+    def test_start_stop_thread_lifecycle(self):
+        self.config.checkout_watch_interval_s = 3600
+        rpc = FakeRpc(result=None)
+        self._order()
+        watcher = checkout_mod.PaymentWatcher(self.store, rpc, self.config,
+                                              logger=self.logger)
+        thread = watcher.start()
+        try:
+            thread.join(timeout=5)
+            self.assertTrue(thread.is_alive())
+            self.assertGreaterEqual(len(rpc.calls), 1)  # first tick ran
+        finally:
+            watcher.stop()
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+
+    def test_run_survives_a_tick_that_raises(self):
+        self.config.checkout_watch_interval_s = 0.05  # fast loop for the test
+        self._order()
+
+        class ExplodingRpc:
+            def find_payment(self, *args, **kwargs):
+                raise RuntimeError("boom")
+
+        watcher = checkout_mod.PaymentWatcher(self.store, ExplodingRpc(),
+                                              self.config, logger=self.logger)
+        thread = watcher.start()
+        time.sleep(0.2)
+        watcher.stop()
+        thread.join(timeout=5)
+        self.assertFalse(thread.is_alive())
+        self.assertIn("checkout_watch_error", self.stream.getvalue())
+        # and the order is untouched — no payment ever fabricated
+        status = [v["status"] for v in self.store.pending()]
+        self.assertEqual(status, ["pending"])
+
+    def test_status_poll_records_paid_via_poll(self):
+        order = self._order()
+        rpc = FakeRpc(result="SigFromPoll")
+        checkout_mod.check_payment(self.store.get(order["orderId"]),
+                                   self.store, rpc, now=time.time(),
+                                   cooldown_s=0, source="status-poll")
+        got = self.store.get(order["orderId"])
+        self.assertEqual(got["paidVia"], "status-poll")
+        payload = checkout_mod.order_payload(got, self.config, "verified")
+        self.assertEqual(payload["paidVia"], "status-poll")
+
+
 class RpcVerifierParsingTests(unittest.TestCase):
     """Transport-level parsing of public Solana RPC responses (fake transport)."""
 

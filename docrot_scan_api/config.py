@@ -91,6 +91,10 @@ class Config:
                                        300, 604800)
         self.checkout_verify_cooldown_s = _int_env(
             "DOCROT_CHECKOUT_VERIFY_COOLDOWN_S", 10, 0, 3600)
+        # Server-side payment watcher (1.9.0+): verify pending orders even
+        # when the buyer never polls the status URL. 0 disables the sweep.
+        self.checkout_watch_interval_s = _int_env(
+            "DOCROT_CHECKOUT_WATCH_INTERVAL_S", 60, 0, 86400)
         self.solana_rpc_url = os.environ.get("DOCROT_SOLANA_RPC", "") or (
             "https://api.mainnet-beta.solana.com")
         self.solana_rpc_timeout_s = _int_env("DOCROT_SOLANA_RPC_TIMEOUT_S",

@@ -37,6 +37,11 @@ def main() -> int:
                                              logger=job_logger)
     checkout_verifier = checkout_mod.RpcVerifier(
         config.solana_rpc_url, timeout_s=config.solana_rpc_timeout_s)
+    watcher = None
+    if config.checkout_watch_interval_s > 0:
+        watcher = checkout_mod.PaymentWatcher(checkout_store,
+                                              checkout_verifier, config,
+                                              logger=job_logger)
 
     httpd = make_server(config, service, access_logger=access_logger,
                         wellknown_body=wellknown,
@@ -46,13 +51,21 @@ def main() -> int:
                    host=config.host, port=config.port,
                    billingModel=config.billing_model,
                    checkoutStore=config.checkout_store_path,
+                   checkoutWatchIntervalS=config.checkout_watch_interval_s,
                    solanaRpc=config.solana_rpc_url)
+    if watcher is not None:
+        watcher.start()
+        job_logger.log("checkout_watch_started",
+                       intervalS=config.checkout_watch_interval_s)
     print(f"{SERVICE_NAME} {VERSION} listening on http://{config.host}:{config.port}",
           file=sys.stderr)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         job_logger.log("server_stopped", reason="keyboard_interrupt")
+    finally:
+        if watcher is not None:
+            watcher.stop()
     return 0
 
 
