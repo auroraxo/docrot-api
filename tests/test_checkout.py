@@ -311,7 +311,7 @@ class CheckoutHttpTests(unittest.TestCase):
         self.assertIn("text/html", ctype)
         # form posts to the same-origin API and opens the payment page
         for needle in ("/v1/scan", "/v1/checkout", "Run free scan",
-                       "Pay US$1.00", "docrot-scan-api", "1.12.0"):
+                       "Pay US$1.00", "docrot-scan-api", "1.12.1"):
             self.assertIn(needle, body)
         # no external assets in the head/style: every URL there is in the
         # footer link, which is the only intentional outbound reference
