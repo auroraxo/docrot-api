@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ---
 
 
+## [1.12.1] - 2026-10-10
+
+### Fixed
+- **Subset scans on very large repos**: the git-tree API fetch read a fixed
+  4 MB cap, so recursive trees larger than that (first seen live on
+  `PostHog/posthog`) returned truncated JSON and a 503
+  `unparseable upstream response` before the truncated-tree fallback could
+  trigger. `_fetch_json` now reads in bounded chunks until EOF under the
+  same total deadline (new `upstream_timeout` code on deadline overrun).
+  Regression test `test_large_tree_payload_not_truncated_by_read_cap`
+  covers a >4 MB tree payload served in chunks. Suite 178 -> 179 green.
+
 ## [1.12.0] — 2026-10-10
 
 ### Subset scans via `pathPrefix` (large-repo unblock)

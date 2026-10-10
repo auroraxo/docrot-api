@@ -81,7 +81,21 @@ def _fetch_json(url, *, connect_timeout_s, total_deadline):
     })
     try:
         with urlrequest.urlopen(req, timeout=min(connect_timeout_s, remaining)) as resp:
-            data = resp.read(4 * 1024 * 1024)
+            # No fixed read cap here: recursive git-tree payloads for large
+            # repos exceed 4 MB and a capped read yields truncated JSON that
+            # fails to parse. Honor the total deadline by reading in bounded
+            # chunks instead of one big read().
+            chunks = []
+            while True:
+                chunk = resp.read(256 * 1024)
+                if not chunk:
+                    break
+                chunks.append(chunk)
+                if time.monotonic() >= total_deadline:
+                    raise SubsetError("upstream_timeout",
+                                      "GitHub API response not fully read "
+                                      "before total deadline", 504)
+            data = b"".join(chunks)
     except HTTPError as exc:
         if exc.code == 404:
             raise SubsetError("repository_or_ref_not_found",

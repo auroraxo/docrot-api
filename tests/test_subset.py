@@ -133,6 +133,51 @@ class FetchSubsetTests(unittest.TestCase):
         self.assertEqual(cm.exception.code, "no_documentation_files")
 
 
+    def test_large_tree_payload_not_truncated_by_read_cap(self):
+        """Regression (1.12.1): recursive trees > 4 MB must parse fully.
+
+        posthog/posthog hit this live: the capped read(4MB) produced a
+        truncated JSON string and a 503 unparseable_upstream error instead
+        of a scan. The body is served in small chunks to force the
+        chunked-read path.
+        """
+        entries = [{"type": "blob", "path": f"docs/page_{i:05d}.md"}
+                   for i in range(30)]
+        tree = _tree_json(entries)
+        # pad so the payload clearly exceeds the old 4 MB read cap
+        tree = tree + b" " * (5 * 1024 * 1024 - len(tree) - 2) + b"\n"
+
+        raws = {
+            f"https://raw.githubusercontent.com/o/r/main/docs/page_{i:05d}.md":
+                b"# p\n[ok](https://good.test/x)\n"
+            for i in range(30)
+        }
+
+        def fake_urlopen(req, timeout=10):
+            url = req.full_url
+            if "api.github.com" in url:
+                return FakeResponse(status=200, body=tree,
+                                    headers={"Content-Type": "application/json"})
+            if url in raws:
+                return FakeResponse(status=200, body=raws[url],
+                                    headers={"Content-Type": "text/plain"})
+            return FakeResponse(status=404, body=b"")
+
+        import time as _t
+        with mock.patch.object(subset_mod, "urlrequest") as ur:
+            ur.Request.side_effect = lambda url, headers=None: mock.Mock(full_url=url)
+            ur.urlopen.side_effect = fake_urlopen
+            result = subset_mod.fetch_subset(
+                "o", "r", "main", "docs",
+                connect_timeout_s=5,
+                total_deadline=_t.monotonic() + 60.0,
+                max_file_bytes=64 * 1024,
+                max_files=100,
+                max_total_bytes=64 * 1024 * 1024,
+            )
+        self.assertEqual(len(result.files), 30)
+
+
 class ScanServiceSubsetTests(unittest.TestCase):
     def test_run_scan_subset_returns_doc_links(self):
         cfg = make_config()
