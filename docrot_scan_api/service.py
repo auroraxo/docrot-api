@@ -3,6 +3,7 @@
 import time
 
 from . import github, extract as extract_mod, links as links_mod
+from . import subset as subset_mod
 from .checker import Deadline, check_urls
 from .version import SERVICE_NAME, VERSION
 
@@ -18,11 +19,13 @@ class JobError(Exception):
 
 
 class ScanService:
-    def __init__(self, config, job_logger=None, fetcher=None, checker=None):
+    def __init__(self, config, job_logger=None, fetcher=None, checker=None,
+                 subsetter=None):
         self.config = config
         self.job_logger = job_logger
         self._fetcher = fetcher or self._default_fetcher
         self._checker = checker or check_urls
+        self._subsetter = subsetter or subset_mod.fetch_subset
 
     # -- fetch indirection (tests monkeypatch this) --------------------------
 
@@ -46,59 +49,106 @@ class ScanService:
         owner, repo = parsed_repo["owner"], parsed_repo["repo"]
         ref = parsed_repo["ref"] or "HEAD"
         log = self.job_logger
+        path_prefix = parsed_repo.get("pathPrefix")
+        scan_mode = "subset" if path_prefix else "archive"
 
         def elapsed_ms():
             return int((time.monotonic() - started) * 1000)
 
         self._log("job_started", requestId=request_id, repository=parsed_repo["url"],
-                  ref=ref)
+                  ref=ref, mode=scan_mode,
+                  pathPrefix=path_prefix if path_prefix else None)
 
-        try:
-            raw = self._fetcher(owner, repo, ref)
-        except extract_mod.FetchError as exc:
-            self._log("job_failed", requestId=request_id, code=exc.code,
-                      error=exc.message, durationMs=elapsed_ms())
-            raise JobError(exc.code, exc.message, exc.http_status) from exc
-        except Exception as exc:  # pragma: no cover - defensive
-            self._log("job_failed", requestId=request_id, code="fetch_internal_error",
-                      error=str(exc), durationMs=elapsed_ms())
-            raise JobError("fetch_internal_error", str(exc), 500) from exc
+        if path_prefix:
+            try:
+                subset = self._subsetter(
+                    owner, repo, ref, path_prefix,
+                    connect_timeout_s=self.config.fetch_connect_timeout_s,
+                    total_deadline=started + self.config.max_job_seconds,
+                    max_file_bytes=self.config.max_file_bytes,
+                    max_files=self.config.max_files,
+                    max_total_bytes=self.config.max_archive_bytes,
+                )
+            except subset_mod.SubsetError as exc:
+                self._log("job_failed", requestId=request_id, code=exc.code,
+                          error=exc.message, durationMs=elapsed_ms(),
+                          mode=scan_mode)
+                raise JobError(exc.code, exc.message, exc.http_status) from exc
+            except Exception as exc:  # pragma: no cover - defensive
+                self._log("job_failed", requestId=request_id,
+                          code="subset_internal_error", error=str(exc),
+                          durationMs=elapsed_ms(), mode=scan_mode)
+                raise JobError("subset_internal_error", str(exc), 500) from exc
+            files = subset.files
+            if not files:
+                self._log("job_failed", requestId=request_id,
+                          code="no_documentation_files",
+                          error=(f"no Markdown/MDX/RST/HTML files found under "
+                                 f"'{path_prefix}' at ref '{ref}'"),
+                          durationMs=elapsed_ms(), mode=scan_mode)
+                raise JobError("no_documentation_files",
+                               f"no Markdown/MDX/RST/HTML files found under "
+                               f"'{path_prefix}' at ref '{ref or 'HEAD'}'", 422)
+            self._log("subset_loaded", requestId=request_id,
+                      mode=scan_mode, pathPrefix=path_prefix,
+                      files=len(files),
+                      treeApiHits=subset.tree_api_hits,
+                      rawFetches=subset.raw_fetches,
+                      truncatedTree=subset.truncated_tree)
+            result_files = files
+        else:
+            try:
+                raw = self._fetcher(owner, repo, ref)
+            except extract_mod.FetchError as exc:
+                self._log("job_failed", requestId=request_id, code=exc.code,
+                          error=exc.message, durationMs=elapsed_ms())
+                raise JobError(exc.code, exc.message, exc.http_status) from exc
+            except Exception as exc:  # pragma: no cover - defensive
+                self._log("job_failed", requestId=request_id,
+                          code="fetch_internal_error", error=str(exc),
+                          durationMs=elapsed_ms())
+                raise JobError("fetch_internal_error", str(exc), 500) from exc
 
-        try:
-            result = extract_mod.extract_files(
-                raw,
-                max_files=self.config.max_files,
-                max_file_bytes=self.config.max_file_bytes,
-            )
-        except extract_mod.FetchError as exc:
-            self._log("job_failed", requestId=request_id, code=exc.code,
-                      error=exc.message, durationMs=elapsed_ms())
-            raise JobError(exc.code, exc.message, exc.http_status) from exc
+            try:
+                result = extract_mod.extract_files(
+                    raw,
+                    max_files=self.config.max_files,
+                    max_file_bytes=self.config.max_file_bytes,
+                )
+            except extract_mod.FetchError as exc:
+                self._log("job_failed", requestId=request_id, code=exc.code,
+                          error=exc.message, durationMs=elapsed_ms())
+                raise JobError(exc.code, exc.message, exc.http_status) from exc
 
-        if not result.files:
-            self._log("job_failed", requestId=request_id, code="no_documentation_files",
-                      error="no Markdown/MDX/RST/HTML files found in archive",
-                      durationMs=elapsed_ms())
-            raise JobError("no_documentation_files",
-                           "no Markdown/MDX/RST/HTML files found in the repository "
-                           "archive (or all exceeded the per-file size limit)", 422)
+            if not result.files:
+                self._log("job_failed", requestId=request_id,
+                          code="no_documentation_files",
+                          error="no Markdown/MDX/RST/HTML files found in archive",
+                          durationMs=elapsed_ms())
+                raise JobError("no_documentation_files",
+                               "no Markdown/MDX/RST/HTML files found in the repository "
+                               "archive (or all exceeded the per-file size limit)",
+                               422)
+            result_files = result.files
 
-        # -- link extraction ---------------------------------------------------
+        # -- link extraction (shared between archive and subset modes) --------
 
         occurrences = []  # (url, source, line)
         seen_urls = set()
-        for relpath in sorted(result.files):
-            text = result.files[relpath]
+        for relpath in sorted(result_files):
+            text = result_files[relpath]
             for url, line in links_mod.extract_links(relpath, text):
                 occurrences.append((url, relpath, line))
                 seen_urls.add(url)
             if deadline_remaining(self.config.max_job_seconds, started) <= 0:
                 self._log("job_failed", requestId=request_id,
                           code="duration_exceeded", error="job deadline exceeded",
-                          durationMs=elapsed_ms())
+                          durationMs=elapsed_ms(), mode=scan_mode)
                 raise JobError("duration_exceeded",
                                f"scan exceeded {self.config.max_job_seconds}s limit",
                                503)
+
+
 
         if len(seen_urls) > self.config.max_urls:
             msg = (f"scan found {len(seen_urls)} distinct remote URLs; "
@@ -108,7 +158,7 @@ class ScanService:
             raise JobError("too_many_urls", msg, 413)
 
         self._log("links_extracted", requestId=request_id,
-                  scannedFiles=len(result.files),
+                  scannedFiles=len(result_files),
                   distinctUrls=len(seen_urls),
                   occurrences=len(occurrences))
 
@@ -147,20 +197,23 @@ class ScanService:
 
         duration = elapsed_ms()
         response = {
+            "mode": scan_mode,
+            "pathPrefix": path_prefix,
             "repository": parsed_repo["url"],
             "ref": parsed_repo["ref"],
-            "scannedFiles": len(result.files),
+            "scannedFiles": len(result_files),
             "checkedUrls": len(seen_urls),
             "broken": broken,
             "durationMs": duration,
             "requestId": request_id,
             "receipt": self._build_receipt(request_id, parsed_repo,
-                                           len(result.files), len(seen_urls),
+                                           len(result_files), len(seen_urls),
                                            broken, duration, wall_start),
         }
         self._log("job_completed", requestId=request_id,
                   repository=parsed_repo["url"], ref=ref,
-                  scannedFiles=len(result.files),
+                  mode=scan_mode,
+                  scannedFiles=len(result_files),
                   checkedUrls=len(seen_urls),
                   brokenCount=len(broken),
                   durationMs=duration)

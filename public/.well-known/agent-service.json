@@ -220,6 +220,7 @@
     "checkConcurrency": 8,
     "checkTimeoutSeconds": 10,
     "maxArchiveBytes": 52428800,
+    "pathPrefix": {"default": "docs/", "type": "string", "description": "Subset scan: only scan doc files under this directory prefix (1.12.0+). When set, the full codeload archive is not downloaded."},
     "maxFileBytes": 2097152,
     "maxJobSeconds": 240,
     "maxRedirects": 5,
@@ -244,5 +245,5 @@
     "restructuredtext",
     "html"
   ],
-  "version": "1.11.0"
+  "version": "1.12.0"
 }

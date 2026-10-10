@@ -20,6 +20,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from . import checkout as checkout_mod
 from . import github as github_mod
+from . import subset as subset_mod
 from .requestid import new_request_id
 from .service import ScanService, JobError
 from .version import SERVICE_NAME, VERSION
@@ -29,7 +30,7 @@ _CHECKOUT_PATH = re.compile(r"^/v1/checkout/([A-Za-z0-9_]{10,64})$")
 
 
 def _scan_form_html(service: str, version: str) -> str:
-    """Self-contained browser scan form (1.11.0+).
+    """Self-contained browser scan form (1.11.0+; supports pathPrefix 1.12.0+).
 
     A non-developer who lands on ``GET /v1/scan-form`` (and any landing
     page that points at it) can paste a public GitHub URL and run a
@@ -334,7 +335,7 @@ class DocrotHandler(BaseHTTPRequestHandler):
                                     request_id)
                     status = 404
             elif path == "/v1/scan-form":
-                # Self-contained browser scan form (1.11.0+). Stdlib-only,
+                # Self-contained browser scan form (1.11.0+; supports pathPrefix 1.12.0+). Stdlib-only,
                 # no scripts that require a build, no external assets. The
                 # one POST it makes is /v1/scan, on the same origin.
                 self._send_html(200, _scan_form_html(SERVICE_NAME, VERSION),
@@ -433,7 +434,7 @@ class DocrotHandler(BaseHTTPRequestHandler):
                             request_id)
             return 400
 
-        allowed = {"repository", "ref"}
+        allowed = {"repository", "ref", "pathPrefix"}
         unknown = set(payload) - allowed
         if unknown:
             self._send_json(400, _error("unknown_field",
@@ -451,6 +452,19 @@ class DocrotHandler(BaseHTTPRequestHandler):
                                         "ref must be a string or null"),
                             request_id)
             return 400
+        path_prefix = None
+        if "pathPrefix" in payload:
+            if payload["pathPrefix"] is not None and \
+                    not isinstance(payload["pathPrefix"], str):
+                self._send_json(400, _error("invalid_field",
+                                            "pathPrefix must be a string or null"),
+                                request_id)
+                return 400
+            try:
+                path_prefix = subset_mod.normalize_prefix(payload["pathPrefix"])
+            except subset_mod.SubsetError as exc:
+                self._send_json(422, _error(exc.code, exc.message), request_id)
+                return 422
 
         try:
             parsed = github_mod.normalize_repository_url(
@@ -458,6 +472,8 @@ class DocrotHandler(BaseHTTPRequestHandler):
             if payload.get("ref"):
                 github_mod.validate_ref(payload["ref"])
                 parsed["ref"] = payload["ref"]
+            if path_prefix is not None:
+                parsed["pathPrefix"] = path_prefix
         except github_mod.RepositoryValidationError as exc:
             status = 422 if exc.code.startswith(("unsupported_",)) else 422
             self._send_json(status, _error(exc.code, exc.message), request_id)

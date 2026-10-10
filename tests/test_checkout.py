@@ -305,13 +305,13 @@ class CheckoutHttpTests(unittest.TestCase):
         self.__class__.rpc.result = None
 
     def test_13_self_serve_scan_form(self):
-        """GET /v1/scan-form serves the browser form (1.11.0+)."""
+        """GET /v1/scan-form serves the browser form (1.11.0+; pathPrefix 1.12.0+)."""
         status, ctype, body = self._raw("GET", "/v1/scan-form")
         self.assertEqual(status, 200)
         self.assertIn("text/html", ctype)
         # form posts to the same-origin API and opens the payment page
         for needle in ("/v1/scan", "/v1/checkout", "Run free scan",
-                       "Pay US$1.00", "docrot-scan-api", "1.11.0"):
+                       "Pay US$1.00", "docrot-scan-api", "1.12.0"):
             self.assertIn(needle, body)
         # no external assets in the head/style: every URL there is in the
         # footer link, which is the only intentional outbound reference

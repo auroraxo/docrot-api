@@ -8,6 +8,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+
+## [1.12.0] — 2026-10-10
+
+### Subset scans via `pathPrefix` (large-repo unblock)
+
+Repositories whose full archive exceeds `DOCROT_MAX_ARCHIVE_BYTES` (50 MiB
+default) can now be scanned without downloading the entire codeload tarball.
+A request may carry `pathPrefix` (default `docs/`); the server walks the git
+tree via the public GitHub API and fetches only the doc files under that
+prefix from `raw.githubusercontent.com`. The same hard caps apply
+(`maxArchiveBytes` as a total-raw-fetch budget, `maxFileBytes` per file,
+`maxFiles` per job, `maxJobSeconds` total deadline). The full archive is
+never downloaded. The response carries `"mode": "subset"` and echoes the
+normalized `"pathPrefix"`; the `receipt` block is unchanged, so `POST
+/v1/checkout` works the same way. Errors: `invalid_path_prefix` (422),
+`repository_or_ref_not_found` (404), `too_many_files` (413),
+`no_documentation_files` (422), `upstream_rate_limited` (429).
+
+This unblocks GrowthBook (292 MiB archive > 50 MiB cap), which previously
+failed the Distribution-Pivot Send 3 DoD-2 verified-receipt requirement.
 ## [1.11.0] — 2026-10-09
 
 ### Added

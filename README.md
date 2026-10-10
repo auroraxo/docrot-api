@@ -76,7 +76,7 @@ you receive the result first.
    pending. API clients sending `Accept: application/json` (or `*/*`)
    keep the JSON contract unchanged.
 
-   **No curl? Use the browser form (1.11.0+).** `GET /v1/scan-form`
+   **No curl? Use the browser form (1.11.0+, `pathPrefix` subset scans 1.12.0+).** `GET /v1/scan-form`
    serves a self-contained page where you paste a repository URL, run
    the scan, see the receipt, and open the payment page in one click —
    same endpoints underneath, no account, no external assets:
